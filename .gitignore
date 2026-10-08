@@ -1,0 +1,43 @@
+# JavaScript
+node_modules/
+frontend/dist/
+desktop/renderer/
+npm-debug.log*
+
+# .NET
+backend/**/bin/
+backend/**/obj/
+TestResults/
+*.trx
+
+# Electron packaging
+release/
+dist-electron/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.Development.local.json
+
+# Local application data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+logs/
+
+# Editors and operating systems
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+
+# Temporary sync directories
+desktop/.renderer-*/
+desktop/renderer.previous/

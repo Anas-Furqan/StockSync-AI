@@ -1,0 +1,25 @@
+{
+  "name": "stocksync-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows desktop foundation for StockSync AI",
+  "main": "desktop/main.cjs",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend && npm run sync:once && dotnet build backend/StockSyncAI.sln --configuration Release",
+    "build:watch": "npm run build:watch --workspace frontend",
+    "sync": "node scripts/sync-frontend.mjs --watch",
+    "sync:once": "node scripts/sync-frontend.mjs",
+    "electron:dev": "echo Electron development workflow will be enabled in the Electron milestone",
+    "test": "npm run test --workspace frontend -- --run && dotnet test backend/StockSyncAI.sln",
+    "lint": "npm run lint --workspace frontend",
+    "package:win": "echo Windows packaging will be enabled in the Electron milestone"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  }
+}
