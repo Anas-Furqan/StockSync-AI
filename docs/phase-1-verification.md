@@ -20,7 +20,19 @@ This file records observed results from the Phase 1 implementation session on Wi
 
 ## Final verification
 
-The complete `npm test`, `npm run build`, dependency audit, packaging result, final status, and final commit list are recorded in the completion report for the implementation session.
+- `npm test` — all 8 tests passed (3 Node, 2 Vitest, 3 xUnit)
+- `npm run build` — frontend build and sync passed; .NET Release build passed with 0 warnings and 0 errors
+- `npm run package:win` — self-contained `win-x64` backend and NSIS installer built successfully
+- Installer: `release/StockSync AI Setup 0.1.0.exe` (148,583,580 bytes)
+- Final installer SHA-256: `5A669E23BEF9D4484C4DE24143AF45AE474A9575FF2F9FF1FAF8F1FC7FBC11D2`
+- Packaged ASAR inspection confirmed `desktop/main.cjs`, `desktop/preload.cjs`, and `desktop/renderer/index.html`
+- The unpacked production application stayed running after launch, confirming packaged startup; the hidden automation launch could not send a normal window-close event, so that specific run was terminated by exact process ID
+- `npm audit --omit=dev` — 0 production vulnerabilities
+- `dotnet list package --vulnerable --include-transitive` — no vulnerable packages after updating the .NET 8 SQLite servicing package
+- Full npm development audit — 15 transitive build-tool findings (10 moderate, 5 high); npm offered only breaking Tailwind changes or an electron-builder downgrade, so no unsafe forced rewrite was applied
+- Tracked-file scan found no generated assets, installers, databases, logs, or secret files
+- Credential-pattern scan found only the documented placeholder in `.env.example`
+- POS mutation-pattern scan found only the README prohibition against adding `Batch_ID`; no POS DDL or write implementation exists
 
 ## Environment nuance
 
