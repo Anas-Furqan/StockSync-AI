@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="StockSyncAI.Api/StockSyncAI.Api.csproj" />
+  <Project Path="StockSyncAI.Tests/StockSyncAI.Tests.csproj" />
+</Solution>
