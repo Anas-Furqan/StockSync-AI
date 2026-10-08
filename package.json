@@ -13,13 +13,48 @@
     "build:watch": "npm run build:watch --workspace frontend",
     "sync": "node scripts/sync-frontend.mjs --watch",
     "sync:once": "node scripts/sync-frontend.mjs",
-    "electron:dev": "echo Electron development workflow will be enabled in the Electron milestone",
-    "test": "npm run test --workspace frontend -- --run && dotnet test backend/StockSyncAI.slnx",
+    "electron:dev": "dotnet build backend/StockSyncAI.Api/StockSyncAI.Api.csproj && concurrently --kill-others --success first --names vite,electron \"npm:dev\" \"wait-on tcp:127.0.0.1:5173 && cross-env STOCKSYNC_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "test": "npm run test:node && npm run test --workspace frontend -- --run && dotnet test backend/StockSyncAI.slnx",
+    "test:node": "node --test desktop/*.test.cjs scripts/*.test.mjs",
     "lint": "npm run lint --workspace frontend",
-    "package:win": "echo Windows packaging will be enabled in the Electron milestone"
+    "backend:publish": "dotnet publish backend/StockSyncAI.Api/StockSyncAI.Api.csproj --configuration Release --runtime win-x64 --self-contained true --output backend/publish/win-x64",
+    "package:win": "npm run build && npm run backend:publish && electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.stocksyncai.desktop",
+    "productName": "StockSync AI",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/publish/win-x64",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "engines": {
     "node": ">=20",
     "npm": ">=10"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "wait-on": "^9.5.1"
   }
 }

@@ -41,8 +41,12 @@ function StatusCard({ health, error, loading, onRetry }) {
             <dd>{health?.service ?? 'Waiting'}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t border-white/10 pt-4">
-            <dt className="text-slate-400">Version</dt>
-            <dd>{health?.version ?? '—'}</dd>
+            <dt className="text-slate-400">Application</dt>
+            <dd>v{health?.applicationVersion ?? health?.version ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between gap-4 border-t border-white/10 pt-4">
+            <dt className="text-slate-400">Backend</dt>
+            <dd>v{health?.version ?? '—'}</dd>
           </div>
         </dl>
       )}
