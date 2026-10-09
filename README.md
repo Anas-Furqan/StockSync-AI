@@ -1,6 +1,6 @@
 # StockSync AI
 
-StockSync AI is a local Windows desktop foundation for future pharmacy inventory workflows. Phase 1 provides a production-oriented Electron shell, a React connectivity screen, and an authenticated .NET 8 backend with application-owned SQLite storage.
+StockSync AI is a local Windows desktop foundation for pharmacy inventory workflows. Phase 2 adds optional, read-only access to documented product, vendor, and category fields in the existing SQL Server `pos` database.
 
 Invoice extraction, matching, verification, POS writes, and undo/redo are deliberately outside this phase.
 
@@ -23,8 +23,7 @@ Invoice extraction, matching, verification, POS writes, and undo/redo are delibe
                                   │ per-user application data│
                                   └───────────────────────────┘
 
-                Future only: configured SQL Server `pos`
-                (no connection or implementation in Phase 1)
+                Optional read-only SQL Server `pos` integration
 ```
 
 Electron chooses an available loopback port, generates a cryptographically random secret for every launch, starts the backend, and waits up to 15 seconds for an authenticated health response. React cannot access the filesystem, Node.js, SQLite, the API secret, or the API directly. It makes parameterless requests through the preload bridge; Electron validates the IPC sender and performs the authenticated request.
@@ -74,7 +73,7 @@ $env:STOCKSYNC_DATA_DIR = "$env:LOCALAPPDATA\StockSyncAI"
 dotnet run --project backend/StockSyncAI.Api --no-launch-profile
 ```
 
-Send the secret in the `X-StockSync-Token` header when calling `/health`, `/api/status`, or `/api/shutdown`. Normal users do not start the backend manually; Electron supplies all three settings and supervises the process.
+Send the secret in the `X-StockSync-Token` header when calling local API routes. Normal users do not start the backend manually; Electron supplies the launch settings and supervises the process.
 
 ### Electron development launch
 
@@ -150,18 +149,26 @@ Standalone backend runs default to `%LOCALAPPDATA%\StockSyncAI` unless `STOCKSYN
 
 Configuration variables:
 
-| Variable | Purpose | Phase 1 behavior |
+| Variable | Purpose | Current behavior |
 | --- | --- | --- |
 | `STOCKSYNC_API_SECRET` | Per-launch local API credential | Required; Electron generates it |
 | `STOCKSYNC_BACKEND_PORT` | Loopback listener port | Electron supplies an available ephemeral port |
 | `STOCKSYNC_DATA_DIR` | Persistent SQLite and log directory | Electron supplies a per-user path |
-| `STOCKSYNC_POS_CONNECTION_STRING` | Future SQL Server `pos` connection | Optional and unused in Phase 1 |
+| `STOCKSYNC_POS_CONNECTION_STRING` | Read-only SQL Server `pos` connection | Optional; absence is reported without blocking startup |
 
 Secrets are never logged. Do not put credentials in source control, `appsettings.json`, or a committed `.env` file.
 
+Configure POS access only with a dedicated SQL Server login that has SELECT permission on the required existing tables and no INSERT, UPDATE, DELETE, DDL, or administrative permissions. The server is not assumed to be local. Example shape:
+
+```powershell
+$env:STOCKSYNC_POS_CONNECTION_STRING = "Server=YOUR_SERVER;Database=pos;User ID=stocksync_reader;Password=...;Encrypt=True;TrustServerCertificate=False;Application Intent=ReadOnly"
+```
+
+The backend requires `Database=pos` and enforces `Application Intent=ReadOnly`. It exposes authenticated `GET` routes at `/api/pos/status`, `/api/pos/products`, `/api/pos/vendors`, and `/api/pos/categories`. Status responses never contain the connection string. Missing configuration leaves `/health` operational, reports `notConfigured`, and returns HTTP 503 from the three data routes.
+
 ## Existing POS database boundary
 
-Phase 1 has an interface and documented schema reference only. It has no SQL Server provider, makes no connection, performs no writes, and runs no POS migrations.
+The SQL Server integration is read-only. It uses explicit column lists through `Microsoft.Data.SqlClient`, performs no writes, and runs no POS migrations. Phase 2 was tested with doubles and deliberately did not connect to a real POS database.
 
 Future work must preserve these supplied names exactly:
 
@@ -184,8 +191,8 @@ Build outputs, installer artifacts, local databases, logs, and secrets are ignor
 
 ## Current limitations
 
-- The screen is intentionally limited to application identity and backend connectivity.
-- No real POS database connection exists.
+- The screen is intentionally limited to application, backend, and POS connection status.
+- No production POS credentials were provided, so no real POS connection was attempted or claimed.
 - No invoice upload, extraction, templates, fuzzy matching, aliases, pack calculations, verification grid, POS creation/write, batch undo/redo, dashboard, or history UI exists.
 - The future Gemini Vision invoice extraction requirement needs internet access. It is not integrated in Phase 1, and the future application must not describe that integration as offline.
 - The desktop application and .NET backend themselves are local and require no cloud hosting.
