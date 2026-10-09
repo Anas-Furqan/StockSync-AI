@@ -2,10 +2,18 @@ const { EventEmitter } = require('node:events')
 const { createServer } = require('node:net')
 const { spawn } = require('node:child_process')
 const { randomBytes } = require('node:crypto')
+const { createReadStream } = require('node:fs')
+const { stat } = require('node:fs/promises')
 const path = require('node:path')
 
 const delay = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+function publicError(message) {
+  const error = new Error(message)
+  error.safeForRenderer = true
+  return error
+}
 
 async function findOpenLoopbackPort() {
   return new Promise((resolve, reject) => {
@@ -131,17 +139,36 @@ class BackendSupervisor extends EventEmitter {
     )
   }
 
-  async request(route, { method = 'GET', timeoutMilliseconds = 2000 } = {}) {
+  async request(
+    route,
+    {
+      method = 'GET',
+      timeoutMilliseconds = 2000,
+      headers = {},
+      body = null,
+    } = {},
+  ) {
     if (!this.port || !this.secret) {
       throw new Error('The backend has not been started.')
     }
 
-    const response = await this.fetchImpl(`http://127.0.0.1:${this.port}${route}`, {
+    const requestOptions = {
       method,
-      headers: { 'X-StockSync-Token': this.secret },
+      headers: { 'X-StockSync-Token': this.secret, ...headers },
       signal: AbortSignal.timeout(timeoutMilliseconds),
-    })
-    const data = response.status === 202 ? null : await response.json()
+    }
+    if (body) {
+      requestOptions.body = body
+      requestOptions.duplex = 'half'
+    }
+
+    const response = await this.fetchImpl(
+      `http://127.0.0.1:${this.port}${route}`,
+      requestOptions,
+    )
+    const data = response.status === 202 || response.status === 204
+      ? null
+      : await response.json()
     return { ok: response.ok, status: response.status, data }
   }
 
@@ -167,6 +194,72 @@ class BackendSupervisor extends EventEmitter {
       throw new Error(`POS status request failed with HTTP ${response.status}.`)
     }
     return response.data
+  }
+
+  async uploadInvoice({ filePath, originalFileName, idempotencyKey }) {
+    let file
+    try {
+      file = await stat(filePath)
+    } catch {
+      throw publicError('The selected invoice is no longer available.')
+    }
+    if (!file.isFile()) {
+      throw publicError('The selected invoice is not a readable file.')
+    }
+
+    const response = await this.request('/api/invoices', {
+      method: 'POST',
+      timeoutMilliseconds: 120000,
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': String(file.size),
+        'X-StockSync-Filename-Base64': Buffer.from(originalFileName, 'utf8').toString('base64'),
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: createReadStream(filePath),
+    })
+    if (!response.ok) {
+      throw publicError(response.data?.error || 'The invoice upload was rejected.')
+    }
+    return response.data
+  }
+
+  async listInvoices(page = 1, pageSize = 50) {
+    const response = await this.request(`/api/invoices?page=${page}&pageSize=${pageSize}`, {
+      timeoutMilliseconds: 5000,
+    })
+    if (!response.ok) {
+      throw publicError(response.data?.error || 'Unable to load invoices.')
+    }
+    return response.data
+  }
+
+  async getInvoice(id) {
+    const response = await this.request(`/api/invoices/${id}`, { timeoutMilliseconds: 5000 })
+    if (!response.ok) {
+      throw publicError(response.data?.error || 'Unable to load the invoice.')
+    }
+    return response.data
+  }
+
+  async deleteInvoice(id) {
+    const response = await this.request(`/api/invoices/${id}`, {
+      method: 'DELETE',
+      timeoutMilliseconds: 10000,
+    })
+    if (!response.ok) {
+      throw publicError(response.data?.error || 'Unable to delete the invoice.')
+    }
+  }
+
+  async invoiceFileResponse(id, download = false) {
+    if (this.childFailure || !this.child) {
+      throw this.childFailure || new Error('The local backend is not running.')
+    }
+    return this.fetchImpl(
+      `http://127.0.0.1:${this.port}/api/invoices/${id}/file?download=${download}`,
+      { headers: { 'X-StockSync-Token': this.secret } },
+    )
   }
 
   async stop() {

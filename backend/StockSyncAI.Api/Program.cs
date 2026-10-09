@@ -67,6 +67,7 @@ app.Use(async (context, next) =>
 
 app.MapSystemEndpoints();
 app.MapPosEndpoints();
+app.MapInvoiceEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

@@ -1,10 +1,23 @@
 const path = require('node:path')
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
+const { createWriteStream } = require('node:fs')
+const { pipeline } = require('node:stream/promises')
+const { Readable } = require('node:stream')
+const { randomUUID } = require('node:crypto')
+const { app, BrowserWindow, dialog, ipcMain, protocol, shell } = require('electron')
 const { BackendSupervisor } = require('./backend-supervisor.cjs')
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'stocksync-invoice',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+])
 
 let mainWindow = null
 let backend = null
 let shutdownStarted = false
+const invoiceSelections = new Map()
+const invoiceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function isTrustedSender(event) {
   return Boolean(mainWindow && event.sender === mainWindow.webContents)
@@ -46,6 +59,158 @@ function registerIpc() {
         ok: false,
         error: error instanceof Error ? error.message : 'POS status is unavailable.',
       }
+    }
+  })
+
+  ipcMain.handle('invoice:select', async (event) => {
+    if (!isTrustedSender(event)) {
+      return { ok: false, error: 'Untrusted IPC sender.' }
+    }
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select supplier invoice',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Invoice documents', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'] },
+      ],
+    })
+    if (result.canceled || result.filePaths.length !== 1) {
+      return { ok: true, data: null }
+    }
+
+    try {
+      const filePath = path.resolve(result.filePaths[0])
+      const file = await require('node:fs/promises').stat(filePath)
+      if (!file.isFile()) {
+        throw new Error('The selected item is not a file.')
+      }
+      invoiceSelections.clear()
+      const selectionToken = randomUUID()
+      const idempotencyKey = randomUUID()
+      const originalFileName = path.basename(filePath)
+      invoiceSelections.set(selectionToken, {
+        filePath,
+        originalFileName,
+        idempotencyKey,
+      })
+      return {
+        ok: true,
+        data: {
+          selectionToken,
+          originalFileName,
+          fileSize: file.size,
+          fileExtension: path.extname(originalFileName).toLowerCase(),
+        },
+      }
+    } catch {
+      return { ok: false, error: 'The selected invoice could not be read.' }
+    }
+  })
+
+  ipcMain.handle('invoice:upload', async (event, payload) => {
+    if (!isTrustedSender(event) || !payload || typeof payload.selectionToken !== 'string') {
+      return { ok: false, error: 'Invalid invoice upload request.' }
+    }
+    const selection = invoiceSelections.get(payload.selectionToken)
+    if (!selection) {
+      return { ok: false, error: 'The invoice selection expired. Select the file again.' }
+    }
+
+    try {
+      return { ok: true, data: await backend.uploadInvoice(selection) }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'The invoice could not be uploaded.') }
+    }
+  })
+
+  ipcMain.handle('invoice:list', async (event, payload = {}) => {
+    if (!isTrustedSender(event)) {
+      return { ok: false, error: 'Untrusted IPC sender.' }
+    }
+    const page = Number.isInteger(payload.page) ? payload.page : 1
+    const pageSize = Number.isInteger(payload.pageSize) ? payload.pageSize : 50
+    if (page < 1 || pageSize < 1 || pageSize > 100) {
+      return { ok: false, error: 'Invalid invoice list request.' }
+    }
+    try {
+      return { ok: true, data: await backend.listInvoices(page, pageSize) }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'Unable to load invoices.') }
+    }
+  })
+
+  ipcMain.handle('invoice:get', async (event, id) => {
+    if (!isTrustedSender(event) || !isInvoiceId(id)) {
+      return { ok: false, error: 'Invalid invoice request.' }
+    }
+    try {
+      return { ok: true, data: await backend.getInvoice(id) }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'Unable to load the invoice.') }
+    }
+  })
+
+  ipcMain.handle('invoice:delete', async (event, id) => {
+    if (!isTrustedSender(event) || !isInvoiceId(id)) {
+      return { ok: false, error: 'Invalid invoice deletion request.' }
+    }
+    try {
+      await backend.deleteInvoice(id)
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'Unable to delete the invoice.') }
+    }
+  })
+
+  ipcMain.handle('invoice:save-copy', async (event, id) => {
+    if (!isTrustedSender(event) || !isInvoiceId(id)) {
+      return { ok: false, error: 'Invalid invoice download request.' }
+    }
+    try {
+      const invoice = await backend.getInvoice(id)
+      const destination = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save invoice copy',
+        defaultPath: invoice.originalFileName,
+      })
+      if (destination.canceled || !destination.filePath) {
+        return { ok: true, data: { saved: false } }
+      }
+      const response = await backend.invoiceFileResponse(id, true)
+      if (!response.ok || !response.body) {
+        throw new Error('The stored invoice file is unavailable.')
+      }
+      await pipeline(Readable.fromWeb(response.body), createWriteStream(destination.filePath))
+      return { ok: true, data: { saved: true } }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'Unable to save the invoice copy.') }
+    }
+  })
+}
+
+function isInvoiceId(value) {
+  return typeof value === 'string' && invoiceIdPattern.test(value)
+}
+
+function safeError(error, fallback) {
+  return error instanceof Error && error.safeForRenderer && error.message
+    ? error.message
+    : fallback
+}
+
+function registerInvoiceProtocol() {
+  protocol.handle('stocksync-invoice', async (request) => {
+    if (request.method !== 'GET') {
+      return new Response('Method not allowed.', { status: 405 })
+    }
+    const url = new URL(request.url)
+    const id = url.pathname.replace(/^\//, '')
+    if (url.hostname !== 'file' || !isInvoiceId(id)) {
+      return new Response('Invalid invoice.', { status: 400 })
+    }
+    try {
+      return await backend.invoiceFileResponse(id)
+    } catch {
+      return new Response('Invoice preview is unavailable.', { status: 503 })
     }
   })
 }
@@ -102,6 +267,7 @@ app.whenReady().then(async () => {
 
     registerIpc()
     await backend.start()
+    registerInvoiceProtocol()
     await createWindow()
   } catch (error) {
     dialog.showErrorBox(
