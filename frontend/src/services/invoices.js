@@ -43,6 +43,22 @@ export function saveInvoiceCopy(id, bridge = globalThis.window?.stockSync) {
   return unwrap(desktop.saveInvoiceCopy(id), 'Unable to save the invoice copy.')
 }
 
+export function getInvoiceExtraction(id, bridge = globalThis.window?.stockSync) {
+  const desktop = requireBridge(bridge)
+  return unwrap(
+    desktop.getInvoiceExtraction(id),
+    'Unable to load invoice extraction data.',
+  )
+}
+
+export function extractInvoice(id, bridge = globalThis.window?.stockSync) {
+  const desktop = requireBridge(bridge)
+  return unwrap(
+    desktop.extractInvoice(id),
+    'Invoice extraction could not be completed.',
+  )
+}
+
 export function getInvoicePreviewUrl(id, bridge = globalThis.window?.stockSync) {
   const desktop = requireBridge(bridge)
   if (typeof desktop.getInvoicePreviewUrl !== 'function') {

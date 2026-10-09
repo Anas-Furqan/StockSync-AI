@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   deleteInvoice,
+  extractInvoice,
+  getInvoiceExtraction,
   getInvoicePreviewUrl,
   listInvoices,
   selectInvoice,
@@ -49,5 +51,19 @@ describe('invoice desktop service', () => {
     await expect(listInvoices(bridge)).rejects.toThrow(
       'Invoice storage is unavailable.',
     )
+  })
+
+  it('loads and starts extraction through authenticated desktop methods', async () => {
+    const extraction = { invoiceId: 'id', status: 'NotStarted', isConfigured: true }
+    const completed = { ...extraction, status: 'Succeeded' }
+    const bridge = {
+      getInvoiceExtraction: vi.fn().mockResolvedValue({ ok: true, data: extraction }),
+      extractInvoice: vi.fn().mockResolvedValue({ ok: true, data: completed }),
+    }
+
+    await expect(getInvoiceExtraction('id', bridge)).resolves.toEqual(extraction)
+    await expect(extractInvoice('id', bridge)).resolves.toEqual(completed)
+    expect(bridge.getInvoiceExtraction).toHaveBeenCalledWith('id')
+    expect(bridge.extractInvoice).toHaveBeenCalledWith('id')
   })
 })
