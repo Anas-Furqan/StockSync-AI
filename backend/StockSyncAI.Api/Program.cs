@@ -45,6 +45,12 @@ builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>()
 builder.Services.AddSingleton<SqliteConnectionFactory>();
 builder.Services.AddSingleton<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddSingleton<IInvoiceService, InvoiceService>();
+builder.Services.AddSingleton<IGeminiRetryDelay, GeminiRetryDelay>();
+builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(client =>
+{
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+    client.Timeout = Timeout.InfiniteTimeSpan;
+});
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
