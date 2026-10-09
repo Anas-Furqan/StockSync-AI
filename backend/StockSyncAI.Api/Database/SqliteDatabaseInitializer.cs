@@ -8,7 +8,7 @@ public sealed class SqliteDatabaseInitializer(
     SqliteConnectionFactory connectionFactory,
     ILogger<SqliteDatabaseInitializer> logger) : IDatabaseInitializer
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -73,6 +73,27 @@ public sealed class SqliteDatabaseInitializer(
                     ON invoices (sha256);
                 """, cancellationToken);
             await RecordMigrationAsync(connection, transaction, 2, cancellationToken);
+        }
+
+        if (version < 3)
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE invoice_extractions (
+                    invoice_id TEXT NOT NULL PRIMARY KEY,
+                    status TEXT NOT NULL CHECK (status IN ('Extracting', 'Succeeded', 'Partial', 'Failed')),
+                    result_json TEXT NULL,
+                    last_error TEXT NULL,
+                    attempt_count INTEGER NOT NULL CHECK (attempt_count > 0),
+                    last_attempt_utc TEXT NOT NULL,
+                    last_success_utc TEXT NULL,
+                    updated_utc TEXT NOT NULL,
+                    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX ix_invoice_extractions_status
+                    ON invoice_extractions (status);
+                """, cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 3, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);

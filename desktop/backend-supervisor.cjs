@@ -254,6 +254,27 @@ class BackendSupervisor extends EventEmitter {
     }
   }
 
+  async getInvoiceExtraction(id) {
+    const response = await this.request(`/api/invoices/${id}/extraction`, {
+      timeoutMilliseconds: 5000,
+    })
+    if (!response.ok) {
+      throw publicError(response.data?.error || 'Unable to load invoice extraction data.')
+    }
+    return response.data
+  }
+
+  async extractInvoice(id) {
+    const response = await this.request(`/api/invoices/${id}/extraction`, {
+      method: 'POST',
+      timeoutMilliseconds: 310000,
+    })
+    if (!response.ok) {
+      throw publicError(response.data?.error || 'Invoice extraction could not be completed.')
+    }
+    return response.data
+  }
+
   async invoiceFileResponse(id, download = false) {
     if (this.childFailure || !this.child) {
       throw this.childFailure || new Error('The local backend is not running.')

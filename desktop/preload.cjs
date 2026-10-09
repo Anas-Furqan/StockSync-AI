@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('stockSync', {
     ipcRenderer.invoke('invoice:list', { page, pageSize }),
   getInvoice: (id) => ipcRenderer.invoke('invoice:get', id),
   deleteInvoice: (id) => ipcRenderer.invoke('invoice:delete', id),
+  getInvoiceExtraction: (id) => ipcRenderer.invoke('invoice:get-extraction', id),
+  extractInvoice: (id) => ipcRenderer.invoke('invoice:extract', id),
   getInvoicePreviewUrl: (id) => `stocksync-invoice://file/${encodeURIComponent(id)}`,
   saveInvoiceCopy: (id) => ipcRenderer.invoke('invoice:save-copy', id),
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),

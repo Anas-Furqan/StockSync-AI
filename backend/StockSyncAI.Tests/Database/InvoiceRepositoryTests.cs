@@ -43,7 +43,7 @@ public sealed class InvoiceRepositoryTests : IDisposable
         await using var connection = await connectionFactory.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM __schema_migrations;";
-        Assert.Equal(2L, await command.ExecuteScalarAsync());
+        Assert.Equal(3L, await command.ExecuteScalarAsync());
     }
 
     private async Task<(InvoiceRepository Repository, SqliteConnectionFactory Factory)>

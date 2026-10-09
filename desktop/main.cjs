@@ -183,6 +183,28 @@ function registerIpc() {
     }
   })
 
+  ipcMain.handle('invoice:get-extraction', async (event, id) => {
+    if (!isTrustedSender(event) || !isInvoiceId(id)) {
+      return { ok: false, error: 'Invalid invoice extraction request.' }
+    }
+    try {
+      return { ok: true, data: await backend.getInvoiceExtraction(id) }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'Unable to load invoice extraction data.') }
+    }
+  })
+
+  ipcMain.handle('invoice:extract', async (event, id) => {
+    if (!isTrustedSender(event) || !isInvoiceId(id)) {
+      return { ok: false, error: 'Invalid invoice extraction request.' }
+    }
+    try {
+      return { ok: true, data: await backend.extractInvoice(id) }
+    } catch (error) {
+      return { ok: false, error: safeError(error, 'Invoice extraction could not be completed.') }
+    }
+  })
+
   ipcMain.handle('invoice:save-copy', async (event, id) => {
     if (!isTrustedSender(event) || !isInvoiceId(id)) {
       return { ok: false, error: 'Invalid invoice download request.' }

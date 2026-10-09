@@ -44,6 +44,7 @@ builder.Services.AddSingleton(serviceProvider =>
 builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>();
 builder.Services.AddSingleton<SqliteConnectionFactory>();
 builder.Services.AddSingleton<IInvoiceRepository, InvoiceRepository>();
+builder.Services.AddSingleton<IInvoiceExtractionRepository, InvoiceExtractionRepository>();
 builder.Services.AddSingleton<IInvoiceService, InvoiceService>();
 builder.Services.AddSingleton<IGeminiRetryDelay, GeminiRetryDelay>();
 builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(client =>
@@ -51,6 +52,7 @@ builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(
     client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
+builder.Services.AddSingleton<IInvoiceExtractionService, InvoiceExtractionService>();
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
@@ -82,6 +84,7 @@ app.Use(async (context, next) =>
 app.MapSystemEndpoints();
 app.MapPosEndpoints();
 app.MapInvoiceEndpoints();
+app.MapGeminiEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -90,6 +93,9 @@ await using (var scope = app.Services.CreateAsyncScope())
         .InitializeAsync();
     await scope.ServiceProvider
         .GetRequiredService<IInvoiceService>()
+        .InitializeAsync();
+    await scope.ServiceProvider
+        .GetRequiredService<IInvoiceExtractionService>()
         .InitializeAsync();
 }
 
