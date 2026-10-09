@@ -1,10 +1,19 @@
+using StockSyncAI.Api.DTOs;
+
 namespace StockSyncAI.Api.Services;
 
-/// <summary>
-/// Boundary for a future, explicitly configured integration with the existing POS database.
-/// Phase 1 deliberately registers no SQL Server implementation and performs no POS access.
-/// </summary>
 public interface IPointOfSaleGateway
 {
+    bool IsConfigured { get; }
+
     Task VerifyConnectionAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PosProductDto>> GetProductsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PosVendorDto>> GetVendorsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PosCategoryDto>> GetCategoriesAsync(
+        CancellationToken cancellationToken = default);
 }

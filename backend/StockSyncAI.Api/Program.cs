@@ -5,6 +5,7 @@ using StockSyncAI.Api.Configuration;
 using StockSyncAI.Api.Database;
 using StockSyncAI.Api.Endpoints;
 using StockSyncAI.Api.Logging;
+using StockSyncAI.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +30,8 @@ builder.Services.AddSingleton(serviceProvider =>
 });
 builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>();
 builder.Services.AddSingleton<PosConnectionSettings>();
+builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
+builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
 
 var app = builder.Build();
 var applicationPaths = app.Services.GetRequiredService<ApplicationPaths>();
