@@ -13,11 +13,19 @@ builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
+GeminiEnvironmentLoader.AddLocalFile(builder.Configuration);
+
 ApplyEnvironmentOverride("STOCKSYNC_API_SECRET", "StockSync:ApiSecret");
 ApplyEnvironmentOverride("STOCKSYNC_DATA_DIR", "StockSync:DataDirectory");
 ApplyEnvironmentOverride("STOCKSYNC_BACKEND_PORT", "StockSync:BackendPort");
 ApplyEnvironmentOverride("STOCKSYNC_POS_CONNECTION_STRING", "StockSync:PosConnectionString");
 ApplyEnvironmentOverride("STOCKSYNC_INVOICE_MAX_BYTES", "StockSync:InvoiceMaxUploadBytes");
+ApplyEnvironmentOverride("GEMINI_API_KEY", "StockSync:GeminiApiKey");
+ApplyEnvironmentOverride("GEMINI_MODEL", "StockSync:GeminiModel");
+ApplyEnvironmentOverride(
+    "GEMINI_REQUEST_TIMEOUT_SECONDS",
+    "StockSync:GeminiRequestTimeoutSeconds");
+ApplyEnvironmentOverride("GEMINI_MAX_RETRIES", "StockSync:GeminiMaxRetries");
 builder.Services
     .AddOptions<StockSyncOptions>()
     .Bind(builder.Configuration.GetSection(StockSyncOptions.SectionName))

@@ -1,5 +1,6 @@
 const path = require('node:path')
 const { createWriteStream } = require('node:fs')
+const { mkdir, writeFile } = require('node:fs/promises')
 const { pipeline } = require('node:stream/promises')
 const { Readable } = require('node:stream')
 const { randomUUID } = require('node:crypto')
@@ -18,6 +19,26 @@ let backend = null
 let shutdownStarted = false
 const invoiceSelections = new Map()
 const invoiceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const emptyGeminiEnvironment = `GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_REQUEST_TIMEOUT_SECONDS=90
+GEMINI_MAX_RETRIES=2
+`
+
+async function ensureEnvironmentFile(environmentFile) {
+  await mkdir(path.dirname(environmentFile), { recursive: true })
+  try {
+    await writeFile(environmentFile, emptyGeminiEnvironment, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+    })
+  } catch (error) {
+    if (error?.code !== 'EEXIST') {
+      throw error
+    }
+  }
+}
 
 function isTrustedSender(event) {
   return Boolean(mainWindow && event.sender === mainWindow.webContents)
@@ -252,9 +273,15 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   try {
+    const dataDirectory = path.join(app.getPath('userData'), 'data')
+    const environmentFile = app.isPackaged
+      ? path.join(app.getPath('userData'), '.env')
+      : path.join(app.getAppPath(), '.env')
+    await ensureEnvironmentFile(environmentFile)
     backend = new BackendSupervisor({
       appRoot: app.getAppPath(),
-      dataDirectory: path.join(app.getPath('userData'), 'data'),
+      dataDirectory,
+      environmentFile,
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
     })

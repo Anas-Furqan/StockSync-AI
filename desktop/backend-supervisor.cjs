@@ -35,10 +35,11 @@ async function findOpenLoopbackPort() {
 }
 
 class BackendSupervisor extends EventEmitter {
-  constructor({ appRoot, dataDirectory, isPackaged, resourcesPath, fetchImpl = fetch }) {
+  constructor({ appRoot, dataDirectory, environmentFile, isPackaged, resourcesPath, fetchImpl = fetch }) {
     super()
     this.appRoot = appRoot
     this.dataDirectory = dataDirectory
+    this.environmentFile = environmentFile
     this.isPackaged = isPackaged
     this.resourcesPath = resourcesPath
     this.fetchImpl = fetchImpl
@@ -64,6 +65,7 @@ class BackendSupervisor extends EventEmitter {
         STOCKSYNC_API_SECRET: this.secret,
         STOCKSYNC_BACKEND_PORT: String(this.port),
         STOCKSYNC_DATA_DIR: this.dataDirectory,
+        STOCKSYNC_ENV_FILE: this.environmentFile,
         DOTNET_ENVIRONMENT: this.isPackaged ? 'Production' : 'Development',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
