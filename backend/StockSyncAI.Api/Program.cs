@@ -33,6 +33,8 @@ builder.Services.AddSingleton(serviceProvider =>
     return new ApplicationPaths(options.DataDirectory);
 });
 builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>();
+builder.Services.AddSingleton<SqliteConnectionFactory>();
+builder.Services.AddSingleton<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();

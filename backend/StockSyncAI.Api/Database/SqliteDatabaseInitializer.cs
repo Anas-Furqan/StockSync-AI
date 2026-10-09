@@ -5,25 +5,16 @@ namespace StockSyncAI.Api.Database;
 
 public sealed class SqliteDatabaseInitializer(
     ApplicationPaths paths,
+    SqliteConnectionFactory connectionFactory,
     ILogger<SqliteDatabaseInitializer> logger) : IDatabaseInitializer
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(paths.DataDirectory);
 
-        var connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = paths.DatabasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
-            ForeignKeys = true,
-            Pooling = false,
-        }.ToString();
-
-        await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken);
 
         await using (var pragma = connection.CreateCommand())
         {
@@ -41,6 +32,12 @@ public sealed class SqliteDatabaseInitializer(
             """, cancellationToken);
 
         var version = await GetCurrentVersionAsync(connection, transaction, cancellationToken);
+        if (version > CurrentSchemaVersion)
+        {
+            throw new InvalidOperationException(
+                $"SQLite schema version {version} is newer than supported version {CurrentSchemaVersion}.");
+        }
+
         if (version < 1)
         {
             await ExecuteAsync(connection, transaction, """
@@ -50,17 +47,32 @@ public sealed class SqliteDatabaseInitializer(
                 );
                 """, cancellationToken);
 
-            await using var recordMigration = connection.CreateCommand();
-            recordMigration.Transaction = transaction;
-            recordMigration.CommandText = """
-                INSERT INTO __schema_migrations (version, applied_utc)
-                VALUES ($version, $appliedUtc);
-                """;
-            recordMigration.Parameters.AddWithValue("$version", CurrentSchemaVersion);
-            recordMigration.Parameters.AddWithValue(
-                "$appliedUtc",
-                DateTimeOffset.UtcNow.ToString("O"));
-            await recordMigration.ExecuteNonQueryAsync(cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 1, cancellationToken);
+        }
+
+        if (version < 2)
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE invoices (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    original_filename TEXT NOT NULL,
+                    storage_key TEXT NOT NULL UNIQUE,
+                    file_extension TEXT NOT NULL,
+                    mime_type TEXT NOT NULL,
+                    file_size INTEGER NOT NULL CHECK (file_size > 0),
+                    sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
+                    uploaded_utc TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (status IN ('Uploaded', 'Deleting')),
+                    idempotency_key TEXT NOT NULL UNIQUE
+                );
+
+                CREATE INDEX ix_invoices_uploaded_utc
+                    ON invoices (uploaded_utc DESC);
+
+                CREATE INDEX ix_invoices_sha256
+                    ON invoices (sha256);
+                """, cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 2, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -68,6 +80,23 @@ public sealed class SqliteDatabaseInitializer(
             "SQLite database is ready at {DatabasePath} with schema version {SchemaVersion}",
             paths.DatabasePath,
             CurrentSchemaVersion);
+    }
+
+    private static async Task RecordMigrationAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        int version,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO __schema_migrations (version, applied_utc)
+            VALUES ($version, $appliedUtc);
+            """;
+        command.Parameters.AddWithValue("$version", version);
+        command.Parameters.AddWithValue("$appliedUtc", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task<long> GetCurrentVersionAsync(
