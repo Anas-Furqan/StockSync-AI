@@ -8,6 +8,10 @@ using StockSyncAI.Api.Logging;
 using StockSyncAI.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
 
 ApplyEnvironmentOverride("STOCKSYNC_API_SECRET", "StockSync:ApiSecret");
 ApplyEnvironmentOverride("STOCKSYNC_DATA_DIR", "StockSync:DataDirectory");
@@ -58,6 +62,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapSystemEndpoints();
+app.MapPosEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
