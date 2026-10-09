@@ -92,6 +92,25 @@ public sealed class InvoiceRepository(SqliteConnectionFactory connectionFactory)
         return keys;
     }
 
+    public async Task<IReadOnlyList<InvoiceRecord>> GetDeletingAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {SelectColumns}
+            FROM invoices
+            WHERE status = 'Deleting';
+            """;
+        var items = new List<InvoiceRecord>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            items.Add(ReadInvoice(reader));
+        }
+        return items;
+    }
+
     public async Task<InvoiceRecord?> MarkDeletingAsync(
         Guid id,
         CancellationToken cancellationToken = default)

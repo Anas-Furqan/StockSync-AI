@@ -15,4 +15,7 @@ public sealed class StockSyncOptions
     public string DataDirectory { get; init; } = string.Empty;
 
     public string PosConnectionString { get; init; } = string.Empty;
+
+    [Range(1, 100 * 1024 * 1024)]
+    public long InvoiceMaxUploadBytes { get; init; } = 20 * 1024 * 1024;
 }

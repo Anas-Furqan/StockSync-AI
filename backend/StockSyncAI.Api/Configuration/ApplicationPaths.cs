@@ -7,6 +7,7 @@ public sealed class ApplicationPaths
         DataDirectory = ResolveDataDirectory(configuredDataDirectory);
         DatabasePath = Path.Combine(DataDirectory, "stocksync.db");
         LogsDirectory = Path.Combine(DataDirectory, "logs");
+        InvoiceStorageDirectory = Path.Combine(DataDirectory, "invoices");
     }
 
     public string DataDirectory { get; }
@@ -14,6 +15,8 @@ public sealed class ApplicationPaths
     public string DatabasePath { get; }
 
     public string LogsDirectory { get; }
+
+    public string InvoiceStorageDirectory { get; }
 
     public static string ResolveDataDirectory(string configuredPath)
     {

@@ -20,6 +20,9 @@ public interface IInvoiceRepository
     Task<IReadOnlySet<string>> GetManagedStorageKeysAsync(
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<InvoiceRecord>> GetDeletingAsync(
+        CancellationToken cancellationToken = default);
+
     Task<InvoiceRecord?> MarkDeletingAsync(
         Guid id,
         CancellationToken cancellationToken = default);

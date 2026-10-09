@@ -17,6 +17,7 @@ ApplyEnvironmentOverride("STOCKSYNC_API_SECRET", "StockSync:ApiSecret");
 ApplyEnvironmentOverride("STOCKSYNC_DATA_DIR", "StockSync:DataDirectory");
 ApplyEnvironmentOverride("STOCKSYNC_BACKEND_PORT", "StockSync:BackendPort");
 ApplyEnvironmentOverride("STOCKSYNC_POS_CONNECTION_STRING", "StockSync:PosConnectionString");
+ApplyEnvironmentOverride("STOCKSYNC_INVOICE_MAX_BYTES", "StockSync:InvoiceMaxUploadBytes");
 builder.Services
     .AddOptions<StockSyncOptions>()
     .Bind(builder.Configuration.GetSection(StockSyncOptions.SectionName))
@@ -35,6 +36,7 @@ builder.Services.AddSingleton(serviceProvider =>
 builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>();
 builder.Services.AddSingleton<SqliteConnectionFactory>();
 builder.Services.AddSingleton<IInvoiceRepository, InvoiceRepository>();
+builder.Services.AddSingleton<IInvoiceService, InvoiceService>();
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
@@ -70,6 +72,9 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     await scope.ServiceProvider
         .GetRequiredService<IDatabaseInitializer>()
+        .InitializeAsync();
+    await scope.ServiceProvider
+        .GetRequiredService<IInvoiceService>()
         .InitializeAsync();
 }
 
