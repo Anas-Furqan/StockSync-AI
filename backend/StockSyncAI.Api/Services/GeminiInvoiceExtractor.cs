@@ -51,10 +51,16 @@ public sealed class GeminiInvoiceExtractor(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                using var response = await SendAsync(request, cancellationToken);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(_options.GeminiRequestTimeoutSeconds));
+                using var message = CreateHttpRequest(request);
+                using var response = await httpClient.SendAsync(
+                    message,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    timeout.Token);
                 if (response.IsSuccessStatusCode)
                 {
-                    return await ReadResponseAsync(response, cancellationToken);
+                    return await ReadResponseAsync(response, timeout.Token);
                 }
                 if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 {
@@ -102,21 +108,14 @@ public sealed class GeminiInvoiceExtractor(
         throw lastException ?? new GeminiUnavailableException("Gemini is unavailable.");
     }
 
-    private async Task<HttpResponseMessage> SendAsync(
-        GeminiRequest request,
-        CancellationToken cancellationToken)
+    private HttpRequestMessage CreateHttpRequest(GeminiRequest request)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(_options.GeminiRequestTimeoutSeconds));
-        using var message = new HttpRequestMessage(
+        var message = new HttpRequestMessage(
             HttpMethod.Post,
             $"v1beta/models/{Uri.EscapeDataString(_options.GeminiModel)}:generateContent");
         message.Headers.Add("x-goog-api-key", _options.GeminiApiKey);
         message.Content = JsonContent.Create(request, options: JsonOptions);
-        return await httpClient.SendAsync(
-            message,
-            HttpCompletionOption.ResponseHeadersRead,
-            timeout.Token);
+        return message;
     }
 
     private static async Task<InvoiceExtractionData> ReadResponseAsync(
