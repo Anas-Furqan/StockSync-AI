@@ -1,4 +1,44 @@
-function StatusCard({ health, error, loading, onRetry }) {
+function PosStatus({ pos }) {
+  const status = pos.error ? 'connectionFailed' : pos.status?.status
+  const label = pos.loading
+    ? 'Checking...'
+    : status === 'connected'
+      ? 'Connected'
+      : status === 'notConfigured'
+        ? 'Not configured'
+        : 'Connection failed'
+  const color =
+    status === 'connected'
+      ? 'text-mint'
+      : status === 'notConfigured' || pos.loading
+        ? 'text-amber-300'
+        : 'text-rose-300'
+
+  return (
+    <div className="border-t border-white/10 pt-4">
+      <div className="flex items-center justify-between gap-4">
+        <dt className="text-slate-400">POS database</dt>
+        <dd className={color}>{label}</dd>
+      </div>
+      {!pos.loading && (
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          {pos.error || pos.status?.message}
+        </p>
+      )}
+      {!pos.loading && status !== 'connected' && (
+        <button
+          className="mt-3 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium transition hover:border-mint/60 hover:text-mint focus:outline-none focus:ring-2 focus:ring-mint/60"
+          type="button"
+          onClick={pos.check}
+        >
+          Check again
+        </button>
+      )}
+    </div>
+  )
+}
+
+function StatusCard({ health, error, loading, onRetry, pos }) {
   const connected = !loading && !error && health?.status === 'ready'
 
   return (
@@ -46,8 +86,9 @@ function StatusCard({ health, error, loading, onRetry }) {
           </div>
           <div className="flex justify-between gap-4 border-t border-white/10 pt-4">
             <dt className="text-slate-400">Backend</dt>
-            <dd>v{health?.version ?? '—'}</dd>
+            <dd>v{health?.version ?? '-'}</dd>
           </div>
+          <PosStatus pos={pos} />
         </dl>
       )}
     </aside>

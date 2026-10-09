@@ -12,3 +12,18 @@ export async function getBackendHealth(bridge = globalThis.window?.stockSync) {
 
   return result.data
 }
+
+export async function getPosConnectionStatus(bridge = globalThis.window?.stockSync) {
+  if (!bridge || typeof bridge.getPosStatus !== 'function') {
+    throw new Error(
+      'Desktop connection is unavailable. Launch StockSync AI through Electron.',
+    )
+  }
+
+  const result = await bridge.getPosStatus()
+  if (!result?.ok) {
+    throw new Error(result?.error || 'Unable to check the POS connection.')
+  }
+
+  return result.data
+}

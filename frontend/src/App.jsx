@@ -1,8 +1,10 @@
 import StatusCard from './components/StatusCard.jsx'
 import useBackendHealth from './hooks/useBackendHealth.js'
+import usePosConnectionStatus from './hooks/usePosConnectionStatus.js'
 
 function App() {
   const { health, error, loading, refresh } = useBackendHealth()
+  const pos = usePosConnectionStatus()
 
   return (
     <main className="relative flex min-h-screen items-center overflow-hidden bg-ink px-6 py-12 text-slate-100">
@@ -19,9 +21,7 @@ function App() {
             A secure local workspace for preparing and verifying pharmacy stock
             updates before they reach the existing point-of-sale system.
           </p>
-          <p className="mt-10 text-sm text-slate-500">
-            Phase 1 · Application foundation
-          </p>
+          <p className="mt-10 text-sm text-slate-500">Phase 2 - POS read integration</p>
         </div>
 
         <StatusCard
@@ -29,6 +29,7 @@ function App() {
           error={error}
           loading={loading}
           onRetry={refresh}
+          pos={pos}
         />
       </section>
     </main>

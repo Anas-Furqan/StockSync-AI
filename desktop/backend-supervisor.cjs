@@ -157,6 +157,18 @@ class BackendSupervisor extends EventEmitter {
     return response.data
   }
 
+  async posStatus() {
+    if (this.childFailure || !this.child) {
+      throw this.childFailure || new Error('The local backend is not running.')
+    }
+
+    const response = await this.request('/api/pos/status')
+    if (!response.ok) {
+      throw new Error(`POS status request failed with HTTP ${response.status}.`)
+    }
+    return response.data
+  }
+
   async stop() {
     if (!this.child) {
       return

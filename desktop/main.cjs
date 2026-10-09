@@ -33,6 +33,21 @@ function registerIpc() {
       }
     }
   })
+
+  ipcMain.handle('pos:get-status', async (event) => {
+    if (!isTrustedSender(event)) {
+      return { ok: false, error: 'Untrusted IPC sender.' }
+    }
+
+    try {
+      return { ok: true, data: await backend.posStatus() }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'POS status is unavailable.',
+      }
+    }
+  })
 }
 
 async function createWindow() {
