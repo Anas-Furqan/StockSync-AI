@@ -1,8 +1,8 @@
 # StockSync AI
 
-StockSync AI is a local Windows desktop foundation for pharmacy inventory workflows. Phase 2 adds optional, read-only access to documented product, vendor, and category fields in the existing SQL Server `pos` database.
+StockSync AI is a local Windows desktop application for pharmacy inventory workflows. Phase 4 adds explicit, user-initiated Gemini document extraction for locally stored supplier invoices while preserving read-only access to the existing SQL Server `pos` database.
 
-Invoice extraction, matching, verification, POS writes, and undo/redo are deliberately outside this phase.
+Product matching, verification, POS writes, and undo/redo remain outside this phase.
 
 ## Architecture
 
@@ -50,7 +50,7 @@ npm install
 dotnet restore backend/StockSyncAI.slnx
 ```
 
-No `.env` file is required for normal Electron development. Copy [.env.example](.env.example) only when testing configuration manually, and never commit secrets.
+The ignored root `.env` file contains blank Gemini settings for local development. Add your own `GEMINI_API_KEY` there when extraction is needed; the application still starts and invoice browsing remains available when the key is blank. Never commit `.env`.
 
 ## Development commands
 
@@ -126,7 +126,7 @@ npm run lint
 npm test
 ```
 
-`npm test` runs Node tests for port allocation and safe synchronization, Vitest frontend service tests, and xUnit backend tests for SQLite migration and authenticated health behavior.
+`npm test` runs Node tests for desktop utilities and safe synchronization, Vitest frontend tests, and xUnit backend tests including SQLite migrations, authenticated APIs, invoice storage, and mock-based Gemini extraction.
 
 Useful focused commands:
 
@@ -144,8 +144,9 @@ Electron stores application-owned data beneath its per-user `userData` directory
 
 - `data/stocksync.db` — SQLite database
 - `data/logs/stocksync-YYYYMMDD.log` — diagnostic logs
+- `data/invoices/` — original uploaded invoice documents
 
-Standalone backend runs default to `%LOCALAPPDATA%\StockSyncAI` unless `STOCKSYNC_DATA_DIR` is supplied. The initial migration creates only `__schema_migrations` and `app_metadata`; future domain tables must be added by explicit versioned SQLite migrations.
+Standalone backend runs default to `%LOCALAPPDATA%\StockSyncAI` unless `STOCKSYNC_DATA_DIR` is supplied. Versioned SQLite migrations manage application metadata, uploaded invoice metadata, and extraction results.
 
 Configuration variables:
 
@@ -155,8 +156,18 @@ Configuration variables:
 | `STOCKSYNC_BACKEND_PORT` | Loopback listener port | Electron supplies an available ephemeral port |
 | `STOCKSYNC_DATA_DIR` | Persistent SQLite and log directory | Electron supplies a per-user path |
 | `STOCKSYNC_POS_CONNECTION_STRING` | Read-only SQL Server `pos` connection | Optional; absence is reported without blocking startup |
+| `GEMINI_API_KEY` | Gemini credential used only by the C# backend | Optional; absence disables extraction without blocking startup |
+| `GEMINI_MODEL` | Gemini model identifier | Defaults to `gemini-2.5-flash` |
+| `GEMINI_REQUEST_TIMEOUT_SECONDS` | Per-attempt Gemini timeout | Defaults to 90; valid range 1–300 |
+| `GEMINI_MAX_RETRIES` | Transient-failure retry count | Defaults to 2; valid range 0–5 |
 
 Secrets are never logged. Do not put credentials in source control, `appsettings.json`, or a committed `.env` file.
+
+### Gemini configuration
+
+Gemini extraction runs only in the local C# backend and sends a stored invoice to Google's Gemini API only after the user selects **Extract invoice data**. It requires internet access and is not an offline feature. `gemini-2.5-flash` remains configurable and supports image/PDF input and structured output according to the [official Gemini model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash).
+
+For repository development, edit the ignored `.env` in the repository root. For an installed application, edit the per-user file at `%APPDATA%\stocksync-ai\.env`; Electron creates this blank file on first launch and passes only its path to the backend. The installer does not contain `.env` or the API key. Restart StockSync AI after changing either file.
 
 Configure POS access only with a dedicated SQL Server login that has SELECT permission on the required existing tables and no INSERT, UPDATE, DELETE, DDL, or administrative permissions. The server is not assumed to be local. Example shape:
 
@@ -191,8 +202,8 @@ Build outputs, installer artifacts, local databases, logs, and secrets are ignor
 
 ## Current limitations
 
-- The screen is intentionally limited to application, backend, and POS connection status.
+- Invoice upload, preview, local storage, and explicit Gemini extraction are available. Extracted values require human verification.
 - No production POS credentials were provided, so no real POS connection was attempted or claimed.
-- No invoice upload, extraction, templates, fuzzy matching, aliases, pack calculations, verification grid, POS creation/write, batch undo/redo, dashboard, or history UI exists.
-- The future Gemini Vision invoice extraction requirement needs internet access. It is not integrated in Phase 1, and the future application must not describe that integration as offline.
+- No supplier templates, fuzzy matching, aliases, pack verification, product verification grid, POS creation/write, batch undo/redo, dashboard, or history UI exists.
+- No live Gemini request is made by automated tests; Gemini behavior is verified with a mock HTTP handler and requires a user-supplied API key for live use.
 - The desktop application and .NET backend themselves are local and require no cloud hosting.
