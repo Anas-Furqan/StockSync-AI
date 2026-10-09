@@ -28,6 +28,7 @@ builder.Services.AddSingleton(serviceProvider =>
     return new ApplicationPaths(options.DataDirectory);
 });
 builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>();
+builder.Services.AddSingleton<PosConnectionSettings>();
 
 var app = builder.Build();
 var applicationPaths = app.Services.GetRequiredService<ApplicationPaths>();
