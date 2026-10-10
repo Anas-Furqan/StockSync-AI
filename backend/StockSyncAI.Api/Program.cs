@@ -53,6 +53,8 @@ builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
 builder.Services.AddSingleton<IInvoiceExtractionService, InvoiceExtractionService>();
+builder.Services.AddSingleton<ProductTextNormalizer>();
+builder.Services.AddSingleton<IProductMatchingService, ProductMatchingService>();
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
