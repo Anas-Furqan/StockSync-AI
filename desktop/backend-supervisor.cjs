@@ -275,6 +275,30 @@ class BackendSupervisor extends EventEmitter {
     return response.data
   }
 
+  async getInvoiceReview(id) {
+    const response = await this.request(`/api/invoices/${id}/review`, { timeoutMilliseconds: 10000 })
+    if (!response.ok) throw publicError(response.data?.error || 'Unable to load invoice review.')
+    return response.data
+  }
+
+  async matchInvoice(id, resetManualDecisions = false) {
+    const response = await this.request(`/api/invoices/${id}/review/match`, {
+      method: 'POST', timeoutMilliseconds: 120000,
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resetManualDecisions }),
+    })
+    if (!response.ok) throw publicError(response.data?.error || 'Product matching could not be completed.')
+    return response.data
+  }
+
+  async saveInvoiceReview(id, lines) {
+    const response = await this.request(`/api/invoices/${id}/review`, {
+      method: 'PUT', timeoutMilliseconds: 30000,
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }),
+    })
+    if (!response.ok) throw publicError(response.data?.error || 'Invoice review could not be saved.')
+    return response.data
+  }
+
   async invoiceFileResponse(id, download = false) {
     if (this.childFailure || !this.child) {
       throw this.childFailure || new Error('The local backend is not running.')

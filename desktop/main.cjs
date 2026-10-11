@@ -205,6 +205,23 @@ function registerIpc() {
     }
   })
 
+  ipcMain.handle('invoice:review:get', async (event, id) => {
+    if (!isTrustedSender(event) || !isInvoiceId(id)) return { ok: false, error: 'Invalid invoice review request.' }
+    try { return { ok: true, data: await backend.getInvoiceReview(id) } }
+    catch (error) { return { ok: false, error: safeError(error, 'Unable to load invoice review.') } }
+  })
+  ipcMain.handle('invoice:review:match', async (event, payload) => {
+    if (!isTrustedSender(event) || !payload || !isInvoiceId(payload.id) || typeof payload.resetManualDecisions !== 'boolean')
+      return { ok: false, error: 'Invalid product matching request.' }
+    try { return { ok: true, data: await backend.matchInvoice(payload.id, payload.resetManualDecisions) } }
+    catch (error) { return { ok: false, error: safeError(error, 'Product matching could not be completed.') } }
+  })
+  ipcMain.handle('invoice:review:save', async (event, payload) => {
+    if (!isTrustedSender(event) || !validReviewPayload(payload)) return { ok: false, error: 'Invalid invoice review save request.' }
+    try { return { ok: true, data: await backend.saveInvoiceReview(payload.id, payload.lines) } }
+    catch (error) { return { ok: false, error: safeError(error, 'Invoice review could not be saved.') } }
+  })
+
   ipcMain.handle('invoice:save-copy', async (event, id) => {
     if (!isTrustedSender(event) || !isInvoiceId(id)) {
       return { ok: false, error: 'Invalid invoice download request.' }
@@ -232,6 +249,15 @@ function registerIpc() {
 
 function isInvoiceId(value) {
   return typeof value === 'string' && invoiceIdPattern.test(value)
+}
+
+function validReviewPayload(payload) {
+  if (!payload || !isInvoiceId(payload.id) || !Array.isArray(payload.lines) || payload.lines.length > 500) return false
+  const decisions = new Set(['ManualSelection', 'NewProductCandidate', 'Unresolved'])
+  return payload.lines.every((line) => line && isInvoiceId(line.id) && decisions.has(line.decisionSource) &&
+    (line.selectedProductId == null || (typeof line.selectedProductId === 'string' && line.selectedProductId.length <= 256)) &&
+    ['boxQuantity', 'packSize', 'netLineAmount'].every((key) => line[key] == null || (typeof line[key] === 'number' && Number.isFinite(line[key]))) &&
+    (line.expiryDate == null || (typeof line.expiryDate === 'string' && line.expiryDate.length <= 20)) && typeof line.expiryReviewed === 'boolean')
 }
 
 function safeError(error, fallback) {

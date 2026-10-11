@@ -23,7 +23,7 @@ function App() {
               A secure local workspace for preparing and verifying pharmacy stock
               updates before they reach the existing point-of-sale system.
             </p>
-            <p className="mt-10 text-sm text-slate-500">Phase 3 - Local invoice storage</p>
+            <p className="mt-10 text-sm text-slate-500">Phase 5 - Invoice verification</p>
           </div>
 
           <StatusCard

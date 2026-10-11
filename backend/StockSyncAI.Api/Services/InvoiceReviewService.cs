@@ -102,7 +102,9 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
         }
         var saved=review with {Lines=lines,Status=InvoiceReviewCalculator.Status(lines),UpdatedUtc=now};
         await reviews.SaveAsync(saved,token);
-        return new(saved,pos.IsConfigured?"connected":"notConfigured",null,MapCatalog(catalog));
+        if (needsCatalog) return new(saved,"connected",null,MapCatalog(catalog));
+        var catalogState=await TryCatalog(token);
+        return new(saved,catalogState.Status,catalogState.Message,catalogState.Products);
     }
 
     private async Task<(InvoiceExtractionData Data,string Fingerprint)> CurrentExtraction(Guid id,CancellationToken token)

@@ -59,6 +59,16 @@ export function extractInvoice(id, bridge = globalThis.window?.stockSync) {
   )
 }
 
+export function getInvoiceReview(id, bridge = globalThis.window?.stockSync) {
+  return unwrap(requireBridge(bridge).getInvoiceReview(id), 'Unable to load invoice review.')
+}
+export function matchInvoice(id, resetManualDecisions = false, bridge = globalThis.window?.stockSync) {
+  return unwrap(requireBridge(bridge).matchInvoice(id, resetManualDecisions), 'Product matching could not be completed.')
+}
+export function saveInvoiceReview(id, lines, bridge = globalThis.window?.stockSync) {
+  return unwrap(requireBridge(bridge).saveInvoiceReview(id, lines), 'Invoice review could not be saved.')
+}
+
 export function getInvoicePreviewUrl(id, bridge = globalThis.window?.stockSync) {
   const desktop = requireBridge(bridge)
   if (typeof desktop.getInvoicePreviewUrl !== 'function') {

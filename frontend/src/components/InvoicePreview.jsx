@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { getInvoicePreviewUrl } from '../services/invoices.js'
 import useInvoiceExtraction from '../hooks/useInvoiceExtraction.js'
 import InvoiceExtractionPanel from './InvoiceExtractionPanel.jsx'
+import InvoiceVerificationGrid from './InvoiceVerificationGrid.jsx'
 
 export default function InvoicePreview({ invoice, onClose, onSaveCopy }) {
+  const [reviewing, setReviewing] = useState(false)
   const extractionState = useInvoiceExtraction(invoice?.id)
 
   if (!invoice) {
@@ -27,6 +30,7 @@ export default function InvoicePreview({ invoice, onClose, onSaveCopy }) {
             <p className="mt-1 text-xs text-slate-500">Stored original document</p>
           </div>
           <div className="flex gap-2">
+            <button className="rounded-lg border border-mint/30 px-3 py-2 text-sm text-mint hover:bg-mint/10" type="button" onClick={() => setReviewing(true)}>Verify invoice</button>
             <button
               className="rounded-lg border border-white/15 px-3 py-2 text-sm hover:border-mint/60 hover:text-mint"
               type="button"
@@ -43,7 +47,7 @@ export default function InvoicePreview({ invoice, onClose, onSaveCopy }) {
             </button>
           </div>
         </header>
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[1.1fr_0.9fr]">
+        {reviewing ? <InvoiceVerificationGrid invoiceId={invoice.id} onBack={() => setReviewing(false)} /> : <div className="grid min-h-0 flex-1 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="min-h-[360px] bg-black/30 p-4 lg:min-h-0">
             {isPdf && (
               <iframe
@@ -79,7 +83,7 @@ export default function InvoicePreview({ invoice, onClose, onSaveCopy }) {
           <aside className="overflow-y-auto border-t border-white/10 p-5 lg:border-l lg:border-t-0">
             <InvoiceExtractionPanel state={extractionState} />
           </aside>
-        </div>
+        </div>}
       </div>
     </div>
   )

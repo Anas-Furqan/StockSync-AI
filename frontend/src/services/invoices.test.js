@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   deleteInvoice,
   extractInvoice,
+  getInvoiceReview,
+  matchInvoice,
+  saveInvoiceReview,
   getInvoiceExtraction,
   getInvoicePreviewUrl,
   listInvoices,
@@ -65,5 +68,19 @@ describe('invoice desktop service', () => {
     await expect(extractInvoice('id', bridge)).resolves.toEqual(completed)
     expect(bridge.getInvoiceExtraction).toHaveBeenCalledWith('id')
     expect(bridge.extractInvoice).toHaveBeenCalledWith('id')
+  })
+
+  it('loads, matches, and saves reviews through narrow desktop methods', async () => {
+    const review = { review: { status: 'NeedsReview', lines: [] } }
+    const bridge = {
+      getInvoiceReview: vi.fn().mockResolvedValue({ ok: true, data: review }),
+      matchInvoice: vi.fn().mockResolvedValue({ ok: true, data: review }),
+      saveInvoiceReview: vi.fn().mockResolvedValue({ ok: true, data: review }),
+    }
+    await expect(getInvoiceReview('invoice-id', bridge)).resolves.toEqual(review)
+    await expect(matchInvoice('invoice-id', false, bridge)).resolves.toEqual(review)
+    await expect(saveInvoiceReview('invoice-id', [], bridge)).resolves.toEqual(review)
+    expect(bridge.matchInvoice).toHaveBeenCalledWith('invoice-id', false)
+    expect(bridge.saveInvoiceReview).toHaveBeenCalledWith('invoice-id', [])
   })
 })
