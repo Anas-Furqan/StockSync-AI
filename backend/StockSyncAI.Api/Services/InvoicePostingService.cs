@@ -26,14 +26,24 @@ public sealed class InvoicePostingService(IInvoiceService invoices,IInvoiceRevie
    {
     var result=await writer.PostAsync(snapshot,token);var resultJson=JsonSerializer.Serialize(result,JsonOptions);
     try{await postings.SetOutcomeAsync(current.Id,PostingStates.Posted,null,resultJson,result.CommittedUtc,DateTimeOffset.UtcNow,CancellationToken.None);}
-    catch(Exception e){logger.LogCritical("POS committed but local success persistence failed for posting {PostingId}: {ExceptionType}",current.Id,e.GetType().Name);try{await postings.SetOutcomeAsync(current.Id,PostingStates.OutcomeUnknown,"POS committed but local confirmation could not be persisted. Reconcile before retrying.",null,null,DateTimeOffset.UtcNow,CancellationToken.None);}catch{}throw new PosOutcomeUnknownException("POS committed, but local confirmation failed. Reconcile before any retry.");}
+    catch(Exception e){logger.LogCritical("POS committed but local success persistence failed for posting {PostingId}: {ExceptionType}",current.Id,e.GetType().Name);await EnsureUnknownOutcome(current,"POS committed but local confirmation could not be persisted. Reconcile before retrying.");throw new PosOutcomeUnknownException("POS committed, but local confirmation failed. Reconcile before any retry.");}
     logger.LogInformation("POS transaction committed for posting {PostingId}",current.Id);return await Evaluate(id,token);
    }
    catch(PosConfirmedRollbackException e){await postings.SetOutcomeAsync(current.Id,PostingStates.FailedSafeToRetry,e.Message,null,null,DateTimeOffset.UtcNow,CancellationToken.None);logger.LogWarning("POS transaction rolled back for posting {PostingId}",current.Id);throw;}
-   catch(PosOutcomeUnknownException e){await postings.SetOutcomeAsync(current.Id,PostingStates.OutcomeUnknown,e.Message,null,null,DateTimeOffset.UtcNow,CancellationToken.None);logger.LogError("POS transaction outcome unknown for posting {PostingId}",current.Id);throw;}
-   catch(Exception e){await postings.SetOutcomeAsync(current.Id,PostingStates.OutcomeUnknown,"The POS transaction outcome is unknown. Reconcile before retrying.",null,null,DateTimeOffset.UtcNow,CancellationToken.None);logger.LogError("Unexpected posting failure {ExceptionType} for {PostingId}; marked OutcomeUnknown",e.GetType().Name,current.Id);throw new PosOutcomeUnknownException("The POS transaction outcome is unknown. Reconcile before retrying.");}
+   catch(PosOutcomeUnknownException e){await EnsureUnknownOutcome(current,e.Message);logger.LogError("POS transaction outcome unknown for posting {PostingId}",current.Id);throw;}
+   catch(Exception e){await EnsureUnknownOutcome(current,"The POS transaction outcome is unknown. Reconcile before retrying.");logger.LogError("Unexpected posting failure {ExceptionType} for {PostingId}; marked OutcomeUnknown",e.GetType().Name,current.Id);throw new PosOutcomeUnknownException("The POS transaction outcome is unknown. Reconcile before retrying.");}
   }
   finally{gate.Release();}
+ }
+
+ private async Task EnsureUnknownOutcome(InvoicePostingRecord posting,string message)
+ {
+  try{await postings.SetOutcomeAsync(posting.Id,PostingStates.OutcomeUnknown,message,null,null,DateTimeOffset.UtcNow,CancellationToken.None);}
+  catch(InvalidOperationException)
+  {
+   var durable=(await postings.ListAsync(posting.InvoiceId,CancellationToken.None)).SingleOrDefault(x=>x.Id==posting.Id);
+   if(durable?.State is not(PostingStates.OutcomeUnknown or PostingStates.Posted))throw;
+  }
  }
 
  private async Task<PostingStatusResult> Evaluate(Guid id,CancellationToken token)

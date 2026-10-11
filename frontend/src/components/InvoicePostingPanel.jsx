@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getPostingStatus, postInvoice, preparePosting } from '../services/invoices.js'
 
 export default function InvoicePostingPanel({ invoiceId, reviewSaved, initialStatus = null }) {
   const [status, setStatus] = useState(initialStatus), [busy, setBusy] = useState(null), [error, setError] = useState(null)
+  const postingRequestActive = useRef(false)
   const refresh = async () => { setBusy('refresh'); setError(null); try { setStatus(await getPostingStatus(invoiceId)) } catch (reason) { setError(reason.message) } finally { setBusy(null) } }
   useEffect(() => { let active = true; getPostingStatus(invoiceId).then((value) => active && setStatus(value)).catch((reason) => active && setError(reason.message)); return () => { active = false } }, [invoiceId, reviewSaved])
   const prepare = async () => { setBusy('prepare'); setError(null); try { setStatus(await preparePosting(invoiceId)) } catch (reason) { setError(reason.message); await refresh() } finally { setBusy(null) } }
-  const post = async () => { if (!globalThis.confirm('Post this verified invoice to the live POS? This creates real product and stock records and cannot be undone here.')) return; setBusy('post'); setError(null); try { setStatus(await postInvoice(invoiceId, status.readiness.postingId)) } catch (reason) { setError(reason.message); await refresh() } finally { setBusy(null) } }
+  const post = async () => { if (postingRequestActive.current || !globalThis.confirm('Post this verified invoice to the live POS? This creates real product and stock records and cannot be undone here.')) return; postingRequestActive.current = true; setBusy('post'); setError(null); try { setStatus(await postInvoice(invoiceId, status.readiness.postingId)) } catch (reason) { setError(reason.message); await refresh() } finally { postingRequestActive.current = false; setBusy(null) } }
   if (!status) return <section className="m-5 rounded-2xl border border-white/10 p-5"><p className="text-sm text-slate-400">{error || 'Checking POS posting readiness...'}</p></section>
   const r = status.readiness
   return <section className="m-5 rounded-2xl border border-white/10 bg-black/10 p-5" aria-label="POS posting">
