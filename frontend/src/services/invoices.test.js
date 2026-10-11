@@ -8,6 +8,9 @@ import {
   getPostingStatus,
   preparePosting,
   postInvoice,
+  getPostingHistory,
+  refreshPostingRecovery,
+  recordPostingDecision,
   getInvoiceExtraction,
   getInvoicePreviewUrl,
   listInvoices,
@@ -93,5 +96,18 @@ describe('invoice desktop service', () => {
     await expect(preparePosting('invoice-id', bridge)).resolves.toEqual(status)
     await expect(postInvoice('invoice-id', 'posting-id', bridge)).resolves.toEqual(status)
     expect(bridge.postInvoice).toHaveBeenCalledWith('invoice-id', 'posting-id')
+  })
+  it('uses narrow read-only recovery methods and preserves operator assertions', async () => {
+    const history = { invoiceId: 'invoice-id', postings: [] }
+    const bridge = {
+      getPostingHistory: vi.fn().mockResolvedValue({ ok: true, data: history }),
+      refreshPostingRecovery: vi.fn().mockResolvedValue({ ok: true, data: history }),
+      recordPostingDecision: vi.fn().mockResolvedValue({ ok: true, data: history }),
+    }
+    await expect(getPostingHistory('invoice-id', bridge)).resolves.toEqual(history)
+    await expect(refreshPostingRecovery('invoice-id', 'posting-id', bridge)).resolves.toEqual(history)
+    await expect(recordPostingDecision('invoice-id', 'posting-id', 'NeedsInvestigation', 'Authoritative records must be checked.', bridge)).resolves.toEqual(history)
+    expect(bridge.refreshPostingRecovery).toHaveBeenCalledWith('invoice-id', 'posting-id')
+    expect(bridge.recordPostingDecision).toHaveBeenCalledWith('invoice-id', 'posting-id', 'NeedsInvestigation', 'Authoritative records must be checked.')
   })
 })

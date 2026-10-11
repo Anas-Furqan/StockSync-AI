@@ -71,6 +71,9 @@ export function saveInvoiceReview(id, lines, selectedVendorName, bridge = global
 export function getPostingStatus(id, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).getPostingStatus(id), 'Unable to check posting readiness.') }
 export function preparePosting(id, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).preparePosting(id), 'Unable to prepare POS posting.') }
 export function postInvoice(id, postingId, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).postInvoice(id, postingId), 'POS posting could not be completed.') }
+export function getPostingHistory(id, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).getPostingHistory(id), 'Unable to load posting recovery history.') }
+export function refreshPostingRecovery(id, postingId, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).refreshPostingRecovery(id, postingId), 'Unable to refresh posting recovery evidence.') }
+export function recordPostingDecision(id, postingId, decision, evidenceNote, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).recordPostingDecision(id, postingId, decision, evidenceNote), 'Unable to record the reconciliation assessment.') }
 
 export function getInvoicePreviewUrl(id, bridge = globalThis.window?.stockSync) {
   const desktop = requireBridge(bridge)
