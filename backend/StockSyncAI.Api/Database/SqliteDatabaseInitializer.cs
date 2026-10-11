@@ -8,7 +8,7 @@ public sealed class SqliteDatabaseInitializer(
     SqliteConnectionFactory connectionFactory,
     ILogger<SqliteDatabaseInitializer> logger) : IDatabaseInitializer
 {
-    private const int CurrentSchemaVersion = 6;
+    private const int CurrentSchemaVersion = 7;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -170,6 +170,95 @@ public sealed class SqliteDatabaseInitializer(
                 ALTER TABLE invoice_reviews ADD COLUMN selected_vendor_name TEXT NULL;
                 """, cancellationToken);
             await RecordMigrationAsync(connection, transaction, 6, cancellationToken);
+        }
+
+        if (version < 7)
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE posting_attempts (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    posting_id TEXT NOT NULL,
+                    attempt_number INTEGER NOT NULL CHECK (attempt_number > 0),
+                    correlation_id TEXT NOT NULL UNIQUE,
+                    transaction_outcome TEXT NOT NULL CHECK (transaction_outcome IN (
+                        'NotStarted','InProgress','Committed','RolledBack','Unknown')),
+                    last_operation TEXT NOT NULL,
+                    started_utc TEXT NOT NULL,
+                    completed_utc TEXT NULL,
+                    safe_error TEXT NULL,
+                    FOREIGN KEY (posting_id) REFERENCES invoice_postings(id) ON DELETE CASCADE,
+                    UNIQUE (posting_id, attempt_number)
+                );
+                CREATE INDEX ix_posting_attempts_posting ON posting_attempts (posting_id, attempt_number DESC);
+
+                CREATE TABLE posting_recovery_events (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    posting_id TEXT NOT NULL,
+                    attempt_id TEXT NULL,
+                    deduplication_key TEXT NOT NULL UNIQUE,
+                    event_type TEXT NOT NULL,
+                    source TEXT NOT NULL CHECK (source IN ('System','Operator')),
+                    technical_outcome TEXT NOT NULL CHECK (technical_outcome IN (
+                        'NotStarted','InProgress','Committed','RolledBack','Unknown')),
+                    message TEXT NOT NULL,
+                    evidence_json TEXT NULL,
+                    created_utc TEXT NOT NULL,
+                    FOREIGN KEY (posting_id) REFERENCES invoice_postings(id) ON DELETE CASCADE,
+                    FOREIGN KEY (attempt_id) REFERENCES posting_attempts(id) ON DELETE SET NULL
+                );
+                CREATE INDEX ix_posting_recovery_events_posting ON posting_recovery_events (posting_id, id DESC);
+
+                CREATE TABLE posting_reconciliation_decisions (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    posting_id TEXT NOT NULL,
+                    attempt_id TEXT NULL,
+                    request_id TEXT NOT NULL UNIQUE,
+                    decision TEXT NOT NULL CHECK (decision IN (
+                        'ReportedPosted','ReportedNotPosted','NeedsInvestigation')),
+                    evidence_note TEXT NOT NULL,
+                    created_utc TEXT NOT NULL,
+                    FOREIGN KEY (posting_id) REFERENCES invoice_postings(id) ON DELETE CASCADE,
+                    FOREIGN KEY (attempt_id) REFERENCES posting_attempts(id) ON DELETE SET NULL
+                );
+                CREATE INDEX ix_posting_reconciliation_posting ON posting_reconciliation_decisions (posting_id, created_utc DESC);
+
+                WITH RECURSIVE migrated_attempts(posting_id,attempt_number,max_attempts,state,started_utc,safe_error) AS (
+                    SELECT id,1,attempt_count,state,updated_utc,safe_error
+                    FROM invoice_postings WHERE attempt_count > 0
+                    UNION ALL
+                    SELECT posting_id,attempt_number+1,max_attempts,state,started_utc,safe_error
+                    FROM migrated_attempts WHERE attempt_number < max_attempts
+                )
+                INSERT INTO posting_attempts(id,posting_id,attempt_number,correlation_id,transaction_outcome,
+                    last_operation,started_utc,completed_utc,safe_error)
+                SELECT lower(hex(randomblob(16))),posting_id,attempt_number,lower(hex(randomblob(16))),
+                    CASE WHEN attempt_number < max_attempts THEN 'Unknown'
+                         WHEN state='Posted' THEN 'Committed'
+                         WHEN state='FailedSafeToRetry' THEN 'RolledBack'
+                         WHEN state='Posting' THEN 'InProgress'
+                         ELSE 'Unknown' END,
+                    'MigratedLegacyAttempt',started_utc,
+                    CASE WHEN attempt_number=max_attempts AND state='Posting' THEN NULL ELSE started_utc END,
+                    safe_error
+                FROM migrated_attempts;
+
+                INSERT INTO posting_recovery_events(posting_id,attempt_id,deduplication_key,event_type,source,
+                    technical_outcome,message,evidence_json,created_utc)
+                SELECT id,NULL,'migration-prepared:'||id,'Prepared','System','NotStarted',
+                    'Existing posting record preserved during recovery-journal migration.',NULL,created_utc
+                FROM invoice_postings;
+
+                INSERT INTO posting_recovery_events(posting_id,attempt_id,deduplication_key,event_type,source,
+                    technical_outcome,message,evidence_json,created_utc)
+                SELECT posting_id,id,'migration-attempt:'||id,
+                    CASE transaction_outcome WHEN 'Committed' THEN 'CommitConfirmed'
+                         WHEN 'RolledBack' THEN 'RollbackConfirmed'
+                         WHEN 'Unknown' THEN 'OutcomeBecameUnknown' ELSE 'AttemptStarted' END,
+                    'System',transaction_outcome,
+                    'Legacy attempt evidence reconstructed from the existing durable posting state.',NULL,started_utc
+                FROM posting_attempts;
+                """, cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 7, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);

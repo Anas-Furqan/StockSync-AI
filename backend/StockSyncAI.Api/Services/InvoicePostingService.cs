@@ -6,7 +6,7 @@ public sealed class InvoicePostingService(IInvoiceService invoices,IInvoiceRevie
 {
  private static readonly ConcurrentDictionary<Guid,SemaphoreSlim> Locks=new();
  private static readonly JsonSerializerOptions JsonOptions=new(JsonSerializerDefaults.Web);
- public async Task InitializeAsync(CancellationToken token=default){var count=await postings.RecoverInterruptedAsync(DateTimeOffset.UtcNow,token);if(count>0)logger.LogWarning("Recovered {Count} interrupted postings as OutcomeUnknown",count);}
+ public async Task InitializeAsync(CancellationToken token=default){try{var recovery=await postings.RecoverInterruptedAsync(DateTimeOffset.UtcNow,token);if(recovery.RecoveredCount>0)logger.LogWarning("Recovered {Count} interrupted postings as OutcomeUnknown",recovery.RecoveredCount);}catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}catch(Exception e){logger.LogError("Posting startup recovery failed with {ExceptionType}; startup will continue and posting remains backend-gated",e.GetType().Name);}}
  public async Task<PostingStatusResult> GetStatusAsync(Guid id,CancellationToken token=default)=>await Evaluate(id,token);
  public async Task<PostingStatusResult> PrepareAsync(Guid id,CancellationToken token=default)
  {var result=await Evaluate(id,token);if(!result.Readiness.CanPrepare)throw new PostingValidationException("Posting preparation is blocked. Resolve the reported validation items first.");var snapshot=await Snapshot(id,token);var record=await postings.PrepareAsync(id,snapshot.Fingerprint,JsonSerializer.Serialize(snapshot.Value,JsonOptions),DateTimeOffset.UtcNow,token);logger.LogInformation("Prepared POS posting {PostingId} for invoice {InvoiceId}",record.Id,id);return await Evaluate(id,token);}
@@ -19,8 +19,8 @@ public sealed class InvoicePostingService(IInvoiceService invoices,IInvoiceRevie
    var evaluated=await Evaluate(id,token);var current=evaluated.Posting;
    if(current is null||current.Id!=postingId)throw new PostingConflictException("The prepared posting is stale or does not match this invoice.");
    if(!evaluated.Readiness.CanPost)throw new PostingValidationException("POS posting is blocked by the current readiness checks.");
-   if(!await postings.TryStartAsync(current.Id,DateTimeOffset.UtcNow,token))throw new PostingConflictException("This posting has already started or is no longer retryable.");
-   logger.LogInformation("Starting POS transaction for posting {PostingId}",current.Id);
+   var attempt=await postings.TryStartAsync(current.Id,DateTimeOffset.UtcNow,token);if(attempt is null)throw new PostingConflictException("This posting has already started or is no longer retryable.");
+   logger.LogInformation("Starting POS transaction for posting {PostingId}, attempt {AttemptId}, correlation {CorrelationId}",current.Id,attempt.Id,attempt.CorrelationId);
    var snapshot=JsonSerializer.Deserialize<PostingSnapshot>(current.SnapshotJson,JsonOptions)??throw new PostingValidationException("The prepared posting snapshot is invalid.");
    try
    {
