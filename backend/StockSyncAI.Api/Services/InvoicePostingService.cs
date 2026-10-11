@@ -2,7 +2,7 @@ using System.Collections.Concurrent;using System.Globalization;using System.Secu
 using StockSyncAI.Api.Database;using StockSyncAI.Api.Models;
 namespace StockSyncAI.Api.Services;
 public sealed class InvoicePostingService(IInvoiceService invoices,IInvoiceReviewRepository reviews,IInvoiceExtractionRepository extractions,
- IInvoicePostingRepository postings,IPointOfSaleGateway pos,IPosSchemaValidator schema,IPosWriteGateway writer,ILogger<InvoicePostingService> logger):IInvoicePostingService
+ IInvoicePostingRepository postings,IPointOfSaleGateway pos,IPosSchemaValidator schema,IPosWriteGateway writer,IPostingRetryPolicy retryPolicy,ILogger<InvoicePostingService> logger):IInvoicePostingService
 {
  private static readonly ConcurrentDictionary<Guid,SemaphoreSlim> Locks=new();
  private static readonly JsonSerializerOptions JsonOptions=new(JsonSerializerDefaults.Web);
@@ -50,13 +50,14 @@ public sealed class InvoicePostingService(IInvoiceService invoices,IInvoiceRevie
  {
   await invoices.GetAsync(id,token);var blockers=new List<string>();var warnings=new List<string>();PostingSnapshot? snapshot=null;string? fingerprint=null;
   try{var built=await Snapshot(id,token,blockers,warnings);snapshot=built.Value;fingerprint=built.Fingerprint;}catch(PostingValidationException e){blockers.Add(e.Message);}
-  var all=await postings.ListAsync(id,token);if(all.Any(x=>x.State==PostingStates.OutcomeUnknown))blockers.Add("An earlier posting has an unknown outcome and must be reconciled before any retry.");
+  var all=await postings.ListAsync(id,token);var hasUnknown=all.Any(x=>x.State==PostingStates.OutcomeUnknown);if(hasUnknown)blockers.Add("An earlier posting has an unknown outcome and must be reconciled before any retry.");
   var current=fingerprint is null?null:all.FirstOrDefault(x=>x.ReviewFingerprint==fingerprint);if(current?.State==PostingStates.Posted)blockers.Add("This reviewed invoice version has already been posted.");if(current?.State==PostingStates.Posting)blockers.Add("This invoice is currently being posted.");
+  PostingAttemptRecord? latestAttempt=null;if(current is not null)latestAttempt=(await postings.ListAttemptsAsync(current.Id,token)).FirstOrDefault();var retry=retryPolicy.Evaluate(current,latestAttempt,fingerprint,hasUnknown,blockers);
   PosPostingResult? result=null;if(current?.ResultJson is not null)try{result=JsonSerializer.Deserialize<PosPostingResult>(current.ResultJson,JsonOptions);}catch{}
-  var state=current?.State??"NotPosted";var canPrepare=blockers.Count==0&&state is ("NotPosted" or PostingStates.Prepared or PostingStates.FailedSafeToRetry or PostingStates.Blocked);var canPost=blockers.Count==0&&state==PostingStates.Prepared;
+  var state=current?.State??"NotPosted";var canPrepare=blockers.Count==0&&(state is ("NotPosted" or PostingStates.Prepared or PostingStates.Blocked)||(state==PostingStates.FailedSafeToRetry&&retry.IsAllowed));var canPost=blockers.Count==0&&state==PostingStates.Prepared;
   var readiness=new PostingReadiness(id,canPrepare,canPost,state,current?.Id.ToString("D"),fingerprint,snapshot?.VendorName,
    snapshot?.Lines.Count(x=>x.DecisionSource==ReviewDecisionSources.ManualSelection)??0,snapshot?.Lines.Count(x=>x.DecisionSource==ReviewDecisionSources.NewProductCandidate)??0,
-   snapshot?.Lines.Sum(x=>x.NetLineAmount)??0,snapshot?.Lines.Count??0,blockers.Distinct().ToArray(),warnings.Distinct().ToArray(),current?.SafeError,result);
+   snapshot?.Lines.Sum(x=>x.NetLineAmount)??0,snapshot?.Lines.Count??0,blockers.Distinct().ToArray(),warnings.Distinct().ToArray(),current?.SafeError,result,retry.IsAllowed,retry.Reason);
   logger.LogInformation("POS preflight for invoice {InvoiceId}: state {State}, blockers {BlockerCount}",id,state,readiness.Blockers.Count);return new(readiness,current);
  }
 

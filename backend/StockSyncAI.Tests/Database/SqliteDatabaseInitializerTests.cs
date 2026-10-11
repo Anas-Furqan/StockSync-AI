@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using StockSyncAI.Api.Configuration;
 using StockSyncAI.Api.Database;
+using StockSyncAI.Api.Models;
 
 namespace StockSyncAI.Tests.Database;
 
@@ -33,6 +34,32 @@ public sealed class SqliteDatabaseInitializerTests : IDisposable
         await command.DisposeAsync();
         await connection.CloseAsync();
         SqliteConnection.ClearAllPools();
+    }
+
+    [Fact]
+    public async Task MigrationSeven_PreservesExistingPostingAndBackfillsRecoveryEvidence()
+    {
+        var paths = new ApplicationPaths(Path.Combine(_directory, "migration-seven"));
+        var factory = new SqliteConnectionFactory(paths);
+        var initializer = new SqliteDatabaseInitializer(paths, factory, NullLogger<SqliteDatabaseInitializer>.Instance);
+        await initializer.InitializeAsync();
+        var invoiceId = Guid.NewGuid();
+        await new InvoiceRepository(factory).InsertAsync(new(invoiceId, "invoice.pdf", $"{invoiceId:N}.pdf", ".pdf", "application/pdf", 1, new string('a', 64), DateTimeOffset.UtcNow, InvoiceRecord.UploadedStatus, Guid.NewGuid().ToString("D")));
+        var prepared = await new InvoicePostingRepository(factory).PrepareAsync(invoiceId, new string('b', 64), "{}", DateTimeOffset.UtcNow);
+
+        await using (var connection = new SqliteConnection($"Data Source={paths.DatabasePath}"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE posting_reconciliation_decisions; DROP TABLE posting_recovery_events; DROP TABLE posting_attempts; DELETE FROM __schema_migrations WHERE version = 7;";
+            await command.ExecuteNonQueryAsync();
+        }
+        SqliteConnection.ClearAllPools();
+
+        await initializer.InitializeAsync();
+        var repository = new InvoicePostingRepository(factory);
+        Assert.Equal(PostingStates.Prepared, (await repository.GetByIdAsync(prepared.Id))!.State);
+        Assert.Contains(await repository.ListEventsAsync(prepared.Id), item => item.EventType == PostingRecoveryEventTypes.Prepared);
     }
 
     public void Dispose()

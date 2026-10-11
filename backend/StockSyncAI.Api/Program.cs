@@ -54,7 +54,9 @@ builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
 builder.Services.AddSingleton<IPosSchemaMetadataProvider, SqlPosSchemaMetadataProvider>();
 builder.Services.AddSingleton<IPosSchemaValidator, PosSchemaValidator>();
 builder.Services.AddSingleton<IPosWriteGateway, SqlPosWriteGateway>();
+builder.Services.AddSingleton<IPostingRetryPolicy, PostingRetryPolicy>();
 builder.Services.AddSingleton<IInvoicePostingService, InvoicePostingService>();
+builder.Services.AddSingleton<IPostingRecoveryService, PostingRecoveryService>();
 
 var app = builder.Build();
 var applicationPaths = app.Services.GetRequiredService<ApplicationPaths>();

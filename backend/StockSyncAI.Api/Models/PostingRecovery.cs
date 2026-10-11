@@ -37,3 +37,20 @@ public sealed record PostingRecoveryEventRecord(long Id,Guid PostingId,Guid? Att
 public sealed record PostingReconciliationDecisionRecord(Guid Id,Guid PostingId,Guid? AttemptId,string Decision,
     string EvidenceNote,DateTimeOffset CreatedUtc);
 public sealed record StartupRecoveryResult(int RecoveredCount,IReadOnlyList<Guid> PostingIds);
+public static class PostingReconciliationOutcomes
+{
+    public const string ConfirmedPosted="ConfirmedPosted";
+    public const string ConfirmedNotCommitted="ConfirmedNotCommitted";
+    public const string Unresolved="Unresolved";
+    public const string BlockedByValidation="BlockedByValidation";
+    public const string RequiresManualReview="RequiresManualReview";
+}
+public sealed record PostingRetryDecision(bool IsAllowed,string Reason);
+public sealed record PostingReconciliationAssessment(Guid PostingId,Guid InvoiceId,string State,string? AttemptId,
+    string LastKnownOperation,string TechnicalOutcome,string Outcome,string? CorrelationId,bool IsConclusive,
+    bool RetryAllowed,bool ManualInvestigationRequired,IReadOnlyList<string> VerifiedPosIdentifiers,
+    IReadOnlyList<string> AvailableEvidence,IReadOnlyList<string> NextSteps);
+public sealed record PostingRecoveryHistoryItem(InvoicePostingRecord Posting,IReadOnlyList<PostingAttemptRecord> Attempts,
+    IReadOnlyList<PostingRecoveryEventRecord> Events,IReadOnlyList<PostingReconciliationDecisionRecord> OperatorDecisions,
+    PostingReconciliationAssessment Assessment);
+public sealed record PostingRecoveryHistoryResult(Guid InvoiceId,IReadOnlyList<PostingRecoveryHistoryItem> Postings);
