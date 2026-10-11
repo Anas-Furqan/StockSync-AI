@@ -18,7 +18,7 @@ public sealed class InvoiceReviewRepositoryTests : IDisposable
             new string('a',64),DateTimeOffset.UtcNow,InvoiceRecord.UploadedStatus,Guid.NewGuid().ToString("D")));
         var now=DateTimeOffset.UtcNow; var line=new InvoiceReviewLine(Guid.NewGuid(),0,"Product","1","2","3",null,
             ReviewDecisionSources.ManualSelection,"7","Product",null,99m,[],1m,2m,3m,2m,1.5m,null,true,[],now,now);
-        var review=new InvoiceReview(invoiceId,new string('b',64),ReviewStatuses.ReadyForNextPhase,[line],now,now);
+        var review=new InvoiceReview(invoiceId,new string('b',64),ReviewStatuses.ReadyForNextPhase,[line],now,now,"Supplier Ltd");
         var repository=new InvoiceReviewRepository(factory);
         await repository.SaveAsync(review);
         var first=await repository.GetAsync(invoiceId);
@@ -26,6 +26,7 @@ public sealed class InvoiceReviewRepositoryTests : IDisposable
         Assert.Equal(review.InvoiceId,first.InvoiceId);
         Assert.Equal(review.ExtractionFingerprint,first.ExtractionFingerprint);
         Assert.Equal(review.Status,first.Status);
+        Assert.Equal("Supplier Ltd",first.SelectedVendorName);
         var firstLine=Assert.Single(first.Lines);
         Assert.Equal(line.Id,firstLine.Id);
         Assert.Equal(line.DecisionSource,firstLine.DecisionSource);

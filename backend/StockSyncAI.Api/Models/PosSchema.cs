@@ -4,9 +4,13 @@ namespace StockSyncAI.Api.Models;
 public sealed record PosColumnMetadata(string Table,string Name,string SqlType,int MaximumLength,
     byte Precision,byte Scale,bool IsNullable,bool IsIdentity,bool HasDefault);
 public sealed record PosTableMetadata(string Name,bool HasPrimaryKey,bool HasUniqueKey,bool HasEnabledTrigger);
+public sealed record PosUniqueIndexMetadata(string Table,string Index,string Column,int KeyOrdinal);
+public sealed record PosForeignKeyMetadata(string Name,string ParentTable,string ParentColumn,
+    string ReferencedTable,string ReferencedColumn,bool IsDisabled);
 public sealed record PosSchemaSnapshot(IReadOnlyList<PosTableMetadata> Tables,
     IReadOnlyList<PosColumnMetadata> Columns,bool CanInsertProducts,bool CanInsertStock,
-    DateTimeOffset InspectedUtc);
+    DateTimeOffset InspectedUtc,IReadOnlyList<PosUniqueIndexMetadata>? UniqueIndexes=null,
+    IReadOnlyList<PosForeignKeyMetadata>? ForeignKeys=null,bool CanReadInsertedProductId=true);
 public sealed record PosSchemaValidationResult(bool IsValid,bool WasInspected,
     IReadOnlyList<string> Blockers,IReadOnlyList<string> Warnings,DateTimeOffset CheckedUtc,
     [property:JsonIgnore] PosSchemaSnapshot? Snapshot=null);
