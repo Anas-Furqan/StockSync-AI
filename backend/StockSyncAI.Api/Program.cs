@@ -19,6 +19,9 @@ ApplyEnvironmentOverride("STOCKSYNC_API_SECRET", "StockSync:ApiSecret");
 ApplyEnvironmentOverride("STOCKSYNC_DATA_DIR", "StockSync:DataDirectory");
 ApplyEnvironmentOverride("STOCKSYNC_BACKEND_PORT", "StockSync:BackendPort");
 ApplyEnvironmentOverride("STOCKSYNC_POS_CONNECTION_STRING", "StockSync:PosConnectionString");
+ApplyEnvironmentOverride("STOCKSYNC_POS_WRITE_CONNECTION_STRING", "StockSync:PosWriteConnectionString");
+ApplyEnvironmentOverride("STOCKSYNC_POS_WRITES_ENABLED", "StockSync:PosWritesEnabled");
+ApplyEnvironmentOverride("STOCKSYNC_POS_BUSINESS_CONVENTIONS_VERIFIED", "StockSync:PosBusinessConventionsVerified");
 ApplyEnvironmentOverride("STOCKSYNC_INVOICE_MAX_BYTES", "StockSync:InvoiceMaxUploadBytes");
 ApplyEnvironmentOverride("GEMINI_API_KEY", "StockSync:GeminiApiKey");
 ApplyEnvironmentOverride("GEMINI_MODEL", "StockSync:GeminiModel");
@@ -61,6 +64,8 @@ builder.Services.AddSingleton<IInvoiceReviewService, InvoiceReviewService>();
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
+builder.Services.AddSingleton<IPosSchemaMetadataProvider, SqlPosSchemaMetadataProvider>();
+builder.Services.AddSingleton<IPosSchemaValidator, PosSchemaValidator>();
 
 var app = builder.Build();
 var applicationPaths = app.Services.GetRequiredService<ApplicationPaths>();

@@ -49,4 +49,28 @@ public sealed class PosConnectionSettingsTests
             ApiSecret = "test-secret-with-at-least-32-characters",
             PosConnectionString = connectionString,
         }));
+
+    [Fact]
+    public void Writes_AreDisabledByDefaultAndRequireDedicatedConnection()
+    {
+        var settings=CreateSettings("Server=example;Database=pos;User ID=reader;Password=secret");
+        Assert.False(settings.WritesEnabled);
+        Assert.Throws<PosConfigurationException>(settings.GetWriteConnectionString);
+    }
+
+    [Fact]
+    public void WriteConnection_RequiresExplicitFlagsAndPosDatabase()
+    {
+        var settings=new PosConnectionSettings(Options.Create(new StockSyncOptions
+        {
+            ApiSecret="test-secret-with-at-least-32-characters",
+            PosConnectionString="Server=example;Database=pos;User ID=reader;Password=read",
+            PosWriteConnectionString="Server=example;Database=pos;User ID=writer;Password=write",
+            PosWritesEnabled="true", PosBusinessConventionsVerified="true",
+        }));
+        var result=new SqlConnectionStringBuilder(settings.GetWriteConnectionString());
+        Assert.Equal(ApplicationIntent.ReadWrite,result.ApplicationIntent);
+        Assert.Equal("writer",result.UserID);
+        Assert.True(settings.BusinessConventionsVerified);
+    }
 }

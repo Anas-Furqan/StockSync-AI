@@ -16,6 +16,12 @@ public sealed class StockSyncOptions
 
     public string PosConnectionString { get; init; } = string.Empty;
 
+    public string PosWriteConnectionString { get; init; } = string.Empty;
+
+    public string PosWritesEnabled { get; init; } = string.Empty;
+
+    public string PosBusinessConventionsVerified { get; init; } = string.Empty;
+
     [Range(1, 100 * 1024 * 1024)]
     public long InvoiceMaxUploadBytes { get; init; } = 20 * 1024 * 1024;
 
