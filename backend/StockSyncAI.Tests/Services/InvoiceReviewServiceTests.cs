@@ -43,6 +43,18 @@ public sealed class InvoiceReviewServiceTests : IDisposable
         Assert.Null(await context.Reviews.GetAsync(invoice.Id));
     }
 
+    [Fact]
+    public async Task MatchAsync_DoesNotGuessAmbiguousPackSize()
+    {
+        var context=await Create(); var invoice=await Upload(context.InvoiceService);
+        var data=InvoiceExtractionServiceTests.SampleData() with { LineItems=[InvoiceExtractionServiceTests.SampleData().LineItems[0] with
+            { PackSize=new("10 x 2 tablets",null) }] };
+        await StoreExtraction(context.Extractions,invoice.Id,data);
+        var line=Assert.Single((await context.Service.MatchAsync(invoice.Id,false)).Review.Lines);
+        Assert.Null(line.PackSize);
+        Assert.Contains(line.ValidationErrors,error=>error.Contains("Pack size",StringComparison.Ordinal));
+    }
+
     private async Task<Context> Create(bool configured=true)
     {
         var paths=new ApplicationPaths(_directory); var factory=new SqliteConnectionFactory(paths);

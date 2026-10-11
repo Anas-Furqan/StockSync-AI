@@ -128,7 +128,12 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
     private static Guid LineId(Guid invoice,string fingerprint,int index)
     { var bytes=SHA256.HashData(Encoding.UTF8.GetBytes($"{invoice:D}|{fingerprint}|{index}")); return new Guid(bytes[..16]); }
     private static string? Number(decimal? value)=>value?.ToString(CultureInfo.InvariantCulture);
-    private static decimal? ParsePack(string? value)=>decimal.TryParse(PackNumber().Match(value??"").Value,NumberStyles.Number,CultureInfo.InvariantCulture,out var result)?result:null;
+    private static decimal? ParsePack(string? value)
+    {
+        var matches=PackNumber().Matches(value??string.Empty);
+        return matches.Count==1 && decimal.TryParse(matches[0].Value,NumberStyles.Number,CultureInfo.InvariantCulture,out var result)
+            ? result : null;
+    }
     private static string? NormalizeDate(string? value)=>DateOnly.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture):value;
     [GeneratedRegex(@"\d+(?:\.\d+)?",RegexOptions.CultureInvariant)] private static partial Regex PackNumber();
 }
