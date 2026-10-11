@@ -14,21 +14,7 @@ builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
 GeminiEnvironmentLoader.AddLocalFile(builder.Configuration);
-
-ApplyEnvironmentOverride("STOCKSYNC_API_SECRET", "StockSync:ApiSecret");
-ApplyEnvironmentOverride("STOCKSYNC_DATA_DIR", "StockSync:DataDirectory");
-ApplyEnvironmentOverride("STOCKSYNC_BACKEND_PORT", "StockSync:BackendPort");
-ApplyEnvironmentOverride("STOCKSYNC_POS_CONNECTION_STRING", "StockSync:PosConnectionString");
-ApplyEnvironmentOverride("STOCKSYNC_POS_WRITE_CONNECTION_STRING", "StockSync:PosWriteConnectionString");
-ApplyEnvironmentOverride("STOCKSYNC_POS_WRITES_ENABLED", "StockSync:PosWritesEnabled");
-ApplyEnvironmentOverride("STOCKSYNC_POS_BUSINESS_CONVENTIONS_VERIFIED", "StockSync:PosBusinessConventionsVerified");
-ApplyEnvironmentOverride("STOCKSYNC_INVOICE_MAX_BYTES", "StockSync:InvoiceMaxUploadBytes");
-ApplyEnvironmentOverride("GEMINI_API_KEY", "StockSync:GeminiApiKey");
-ApplyEnvironmentOverride("GEMINI_MODEL", "StockSync:GeminiModel");
-ApplyEnvironmentOverride(
-    "GEMINI_REQUEST_TIMEOUT_SECONDS",
-    "StockSync:GeminiRequestTimeoutSeconds");
-ApplyEnvironmentOverride("GEMINI_MAX_RETRIES", "StockSync:GeminiMaxRetries");
+GeminiEnvironmentLoader.AddEnvironmentOverrides(builder.Configuration);
 builder.Services
     .AddOptions<StockSyncOptions>()
     .Bind(builder.Configuration.GetSection(StockSyncOptions.SectionName))
@@ -118,14 +104,5 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 await app.RunAsync();
-
-void ApplyEnvironmentOverride(string environmentName, string configurationKey)
-{
-    var value = Environment.GetEnvironmentVariable(environmentName);
-    if (!string.IsNullOrWhiteSpace(value))
-    {
-        builder.Configuration[configurationKey] = value;
-    }
-}
 
 public partial class Program;

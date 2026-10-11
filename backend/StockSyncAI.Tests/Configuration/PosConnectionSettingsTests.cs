@@ -32,6 +32,15 @@ public sealed class PosConnectionSettingsTests
     }
 
     [Fact]
+    public void InvalidReadConnectionString_IsSanitized()
+    {
+        var settings=CreateSettings("Password=do-not-leak;this is not valid");
+        var exception=Assert.Throws<PosConfigurationException>(settings.GetReadOnlyConnectionString);
+        Assert.Contains("invalid",exception.Message,StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("do-not-leak",exception.Message,StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GetReadOnlyConnectionString_EnforcesReadOnlyApplicationIntent()
     {
         var settings = CreateSettings(

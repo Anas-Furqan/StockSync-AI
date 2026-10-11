@@ -156,30 +156,36 @@ Configuration variables:
 | `STOCKSYNC_BACKEND_PORT` | Loopback listener port | Electron supplies an available ephemeral port |
 | `STOCKSYNC_DATA_DIR` | Persistent SQLite and log directory | Electron supplies a per-user path |
 | `STOCKSYNC_POS_CONNECTION_STRING` | Read-only SQL Server `pos` connection | Optional; absence is reported without blocking startup |
+| `STOCKSYNC_POS_WRITE_CONNECTION_STRING` | Separate least-privilege SQL Server write connection | Optional; never falls back to the read-only connection |
+| `STOCKSYNC_POS_BUSINESS_CONVENTIONS_VERIFIED` | Operator attestation that live POS quantity, price, expiry, and ID conventions were verified | Defaults to `false`; invalid values remain false |
+| `STOCKSYNC_POS_WRITES_ENABLED` | Explicit server-side POS write authorization | Defaults to `false`; invalid values remain false |
 | `GEMINI_API_KEY` | Gemini credential used only by the C# backend | Optional; absence disables extraction without blocking startup |
 | `GEMINI_MODEL` | Gemini model identifier | Defaults to `gemini-2.5-flash` |
 | `GEMINI_REQUEST_TIMEOUT_SECONDS` | Per-attempt Gemini timeout | Defaults to 90; valid range 1–300 |
 | `GEMINI_MAX_RETRIES` | Transient-failure retry count | Defaults to 2; valid range 0–5 |
 
-Secrets are never logged. Do not put credentials in source control, `appsettings.json`, or a committed `.env` file.
+Secrets are never logged. Do not put credentials in source control or `appsettings.json`. The local `.env` is ignored by Git; `.env.example` contains safe placeholders only.
 
 ### Gemini configuration
 
 Gemini extraction runs only in the local C# backend and sends a stored invoice to Google's Gemini API only after the user selects **Extract invoice data**. It requires internet access and is not an offline feature. `gemini-2.5-flash` remains configurable and supports image/PDF input and structured output according to the [official Gemini model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash).
 
-For repository development, edit the ignored `.env` in the repository root. For an installed application, edit the per-user file at `%APPDATA%\stocksync-ai\.env`; Electron creates this blank file on first launch and passes only its path to the backend. The installer does not contain `.env` or the API key. Restart StockSync AI after changing either file.
+For repository development, edit the ignored `.env` in the repository root. For an installed application, edit the per-user file in Electron's writable `userData` directory (`%APPDATA%\StockSync AI\.env` on a standard Windows installation). Electron creates it with safe defaults on first launch and passes only its path to the backend. The installer does not contain `.env` or credentials. Restart StockSync AI after changing the file. Process environment variables with the same names take precedence over `.env`; Electron's per-launch API secret, port, and data directory therefore cannot be overridden by file contents.
 
-Configure POS access only with a dedicated SQL Server login that has SELECT permission on the required existing tables and no INSERT, UPDATE, DELETE, DDL, or administrative permissions. The server is not assumed to be local. Example shape:
+Configure the read connection with a dedicated SQL Server login that has SELECT permission on the required existing tables and no write, DDL, or administrative permissions. Configure writes, if separately authorized, with a different least-privilege login. Example `.env` shape:
 
-```powershell
-$env:STOCKSYNC_POS_CONNECTION_STRING = "Server=YOUR_SERVER;Database=pos;User ID=stocksync_reader;Password=...;Encrypt=True;TrustServerCertificate=False;Application Intent=ReadOnly"
+```dotenv
+STOCKSYNC_POS_CONNECTION_STRING=Server=YOUR_SERVER;Database=pos;User ID=stocksync_reader;Password=...;Encrypt=True;TrustServerCertificate=False;Application Intent=ReadOnly
+STOCKSYNC_POS_WRITE_CONNECTION_STRING=
+STOCKSYNC_POS_BUSINESS_CONVENTIONS_VERIFIED=false
+STOCKSYNC_POS_WRITES_ENABLED=false
 ```
 
-The backend requires `Database=pos` and enforces `Application Intent=ReadOnly`. It exposes authenticated `GET` routes at `/api/pos/status`, `/api/pos/products`, `/api/pos/vendors`, and `/api/pos/categories`. Status responses never contain the connection string. Missing configuration leaves `/health` operational, reports `notConfigured`, and returns HTTP 503 from the three data routes.
+The backend requires `Database=pos` and enforces `Application Intent=ReadOnly` on the read connection. Loading `.env` does not authorize writes: the separate write connection, both explicit flags, live schema validation, permissions, and posting preflight must all pass. Status and error responses never contain connection strings. Missing configuration leaves `/health` operational and reports the incomplete requirements.
 
 ## Existing POS database boundary
 
-The SQL Server integration is read-only. It uses explicit column lists through `Microsoft.Data.SqlClient`, performs no writes, and runs no POS migrations. Phase 2 was tested with doubles and deliberately did not connect to a real POS database.
+Read operations always use the dedicated read-only connection. The guarded posting engine uses the separate write connection only after explicit authorization and live validation. It uses explicit column lists through `Microsoft.Data.SqlClient` and never runs POS migrations or other DDL. Automated tests use doubles and do not connect to a real POS database.
 
 Future work must preserve these supplied names exactly:
 
@@ -203,7 +209,7 @@ Build outputs, installer artifacts, local databases, logs, and secrets are ignor
 ## Current limitations
 
 - Invoice upload, preview, local storage, and explicit Gemini extraction are available. Extracted values require human verification.
-- No production POS credentials were provided, so no real POS connection was attempted or claimed.
-- No supplier templates, fuzzy matching, aliases, pack verification, product verification grid, POS creation/write, batch undo/redo, dashboard, or history UI exists.
+- No production POS credentials were provided, so no real POS connection or write was attempted or claimed.
+- POS posting remains disabled until its separate credentials, business conventions, live schema, and permissions are explicitly verified and authorized.
 - No live Gemini request is made by automated tests; Gemini behavior is verified with a mock HTTP handler and requires a user-supplied API key for live use.
 - The desktop application and .NET backend themselves are local and require no cloud hosting.
