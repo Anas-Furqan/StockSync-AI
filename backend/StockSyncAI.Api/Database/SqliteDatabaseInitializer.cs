@@ -8,7 +8,7 @@ public sealed class SqliteDatabaseInitializer(
     SqliteConnectionFactory connectionFactory,
     ILogger<SqliteDatabaseInitializer> logger) : IDatabaseInitializer
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -94,6 +94,49 @@ public sealed class SqliteDatabaseInitializer(
                     ON invoice_extractions (status);
                 """, cancellationToken);
             await RecordMigrationAsync(connection, transaction, 3, cancellationToken);
+        }
+
+        if (version < 4)
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE invoice_reviews (
+                    invoice_id TEXT NOT NULL PRIMARY KEY,
+                    extraction_fingerprint TEXT NOT NULL CHECK (length(extraction_fingerprint) = 64),
+                    status TEXT NOT NULL CHECK (status IN ('NeedsReview', 'ReviewInProgress', 'ReadyForNextPhase')),
+                    created_utc TEXT NOT NULL,
+                    updated_utc TEXT NOT NULL,
+                    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE invoice_review_lines (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    invoice_id TEXT NOT NULL,
+                    line_index INTEGER NOT NULL CHECK (line_index >= 0),
+                    decision_source TEXT NOT NULL CHECK (decision_source IN (
+                        'AutomaticSuggestion', 'ManualSelection', 'NewProductCandidate', 'Unresolved')),
+                    selected_product_id TEXT NULL,
+                    selected_product_name TEXT NULL,
+                    selected_product_barcode TEXT NULL,
+                    match_score TEXT NULL,
+                    candidates_json TEXT NOT NULL,
+                    box_quantity TEXT NULL,
+                    pack_size TEXT NULL,
+                    net_line_amount TEXT NULL,
+                    total_units TEXT NULL,
+                    per_unit_cost TEXT NULL,
+                    expiry_date TEXT NULL,
+                    expiry_reviewed INTEGER NOT NULL CHECK (expiry_reviewed IN (0, 1)),
+                    validation_json TEXT NOT NULL,
+                    created_utc TEXT NOT NULL,
+                    updated_utc TEXT NOT NULL,
+                    FOREIGN KEY (invoice_id) REFERENCES invoice_reviews(invoice_id) ON DELETE CASCADE,
+                    UNIQUE (invoice_id, line_index)
+                );
+
+                CREATE INDEX ix_invoice_review_lines_invoice
+                    ON invoice_review_lines (invoice_id, line_index);
+                """, cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 4, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);

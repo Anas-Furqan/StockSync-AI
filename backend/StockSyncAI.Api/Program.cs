@@ -45,6 +45,7 @@ builder.Services.AddSingleton<IDatabaseInitializer, SqliteDatabaseInitializer>()
 builder.Services.AddSingleton<SqliteConnectionFactory>();
 builder.Services.AddSingleton<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddSingleton<IInvoiceExtractionRepository, InvoiceExtractionRepository>();
+builder.Services.AddSingleton<IInvoiceReviewRepository, InvoiceReviewRepository>();
 builder.Services.AddSingleton<IInvoiceService, InvoiceService>();
 builder.Services.AddSingleton<IGeminiRetryDelay, GeminiRetryDelay>();
 builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(client =>
@@ -55,6 +56,8 @@ builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(
 builder.Services.AddSingleton<IInvoiceExtractionService, InvoiceExtractionService>();
 builder.Services.AddSingleton<ProductTextNormalizer>();
 builder.Services.AddSingleton<IProductMatchingService, ProductMatchingService>();
+builder.Services.AddSingleton<InvoiceReviewCalculator>();
+builder.Services.AddSingleton<IInvoiceReviewService, InvoiceReviewService>();
 builder.Services.AddSingleton<PosConnectionSettings>();
 builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
@@ -87,6 +90,7 @@ app.MapSystemEndpoints();
 app.MapPosEndpoints();
 app.MapInvoiceEndpoints();
 app.MapGeminiEndpoints();
+app.MapInvoiceReviewEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
