@@ -50,7 +50,7 @@ public sealed class PosSchemaValidator(PosConnectionSettings settings,IPosSchema
         if(!snapshot.CanInsertStock) blockers.Add("The dedicated POS write account lacks INSERT permission on dbo.stockin.");
         if(snapshot.Tables.SingleOrDefault(x=>x.Name.Equals("stockin",StringComparison.OrdinalIgnoreCase)) is {HasPrimaryKey:false,HasUniqueKey:false})
             warnings.Add("dbo.stockin exposes no reliable row identifier; a commit/local-state crash cannot be reconciled automatically.");
-        return new(blockers.Count==0,true,blockers,warnings,DateTimeOffset.UtcNow);
+        return new(blockers.Count==0,true,blockers,warnings,DateTimeOffset.UtcNow,snapshot);
     }
     private static void RequireTypes(PosSchemaSnapshot snapshot,string table,IEnumerable<string> names,HashSet<string> allowed,List<string> blockers)
     { foreach(var name in names){var column=snapshot.Columns.SingleOrDefault(x=>x.Table.Equals(table,StringComparison.OrdinalIgnoreCase)&&x.Name.Equals(name,StringComparison.OrdinalIgnoreCase));if(column is not null&&!allowed.Contains(column.SqlType))blockers.Add($"POS column dbo.{table}.{name} has unsupported SQL type {column.SqlType}.");} }

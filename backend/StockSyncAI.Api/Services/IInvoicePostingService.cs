@@ -1,0 +1,3 @@
+using StockSyncAI.Api.Models;namespace StockSyncAI.Api.Services;
+public interface IInvoicePostingService{Task InitializeAsync(CancellationToken token=default);Task<PostingStatusResult> GetStatusAsync(Guid invoiceId,CancellationToken token=default);Task<PostingStatusResult> PrepareAsync(Guid invoiceId,CancellationToken token=default);Task<PostingStatusResult> PostAsync(Guid invoiceId,Guid postingId,string confirmation,CancellationToken token=default);}
+public sealed class PostingValidationException(string message):Exception(message);public sealed class PostingConflictException(string message):Exception(message);

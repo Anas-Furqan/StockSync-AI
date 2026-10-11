@@ -67,6 +67,8 @@ builder.Services.AddSingleton<IPosQueryExecutor, SqlPosQueryExecutor>();
 builder.Services.AddSingleton<IPointOfSaleGateway, SqlPointOfSaleGateway>();
 builder.Services.AddSingleton<IPosSchemaMetadataProvider, SqlPosSchemaMetadataProvider>();
 builder.Services.AddSingleton<IPosSchemaValidator, PosSchemaValidator>();
+builder.Services.AddSingleton<IPosWriteGateway, SqlPosWriteGateway>();
+builder.Services.AddSingleton<IInvoicePostingService, InvoicePostingService>();
 
 var app = builder.Build();
 var applicationPaths = app.Services.GetRequiredService<ApplicationPaths>();
@@ -108,6 +110,9 @@ await using (var scope = app.Services.CreateAsyncScope())
         .InitializeAsync();
     await scope.ServiceProvider
         .GetRequiredService<IInvoiceExtractionService>()
+        .InitializeAsync();
+    await scope.ServiceProvider
+        .GetRequiredService<IInvoicePostingService>()
         .InitializeAsync();
 }
 
