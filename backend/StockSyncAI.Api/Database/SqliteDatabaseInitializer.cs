@@ -8,7 +8,7 @@ public sealed class SqliteDatabaseInitializer(
     SqliteConnectionFactory connectionFactory,
     ILogger<SqliteDatabaseInitializer> logger) : IDatabaseInitializer
 {
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -137,6 +137,31 @@ public sealed class SqliteDatabaseInitializer(
                     ON invoice_review_lines (invoice_id, line_index);
                 """, cancellationToken);
             await RecordMigrationAsync(connection, transaction, 4, cancellationToken);
+        }
+
+        if (version < 5)
+        {
+            await ExecuteAsync(connection, transaction, """
+                ALTER TABLE invoice_review_lines ADD COLUMN new_product_name TEXT NULL;
+                ALTER TABLE invoice_review_lines ADD COLUMN new_product_category TEXT NULL;
+                ALTER TABLE invoice_review_lines ADD COLUMN new_product_barcode TEXT NULL;
+                ALTER TABLE invoice_review_lines ADD COLUMN new_product_selling_price TEXT NULL;
+                ALTER TABLE invoice_review_lines ADD COLUMN new_product_discount TEXT NULL;
+                CREATE TABLE invoice_postings (
+                    id TEXT NOT NULL PRIMARY KEY, invoice_id TEXT NOT NULL,
+                    review_fingerprint TEXT NOT NULL CHECK (length(review_fingerprint) = 64),
+                    snapshot_json TEXT NOT NULL,
+                    state TEXT NOT NULL CHECK (state IN ('Prepared','Posting','Posted','FailedSafeToRetry','OutcomeUnknown','Blocked')),
+                    attempt_count INTEGER NOT NULL CHECK (attempt_count >= 0),
+                    safe_error TEXT NULL, result_json TEXT NULL, confirmed_utc TEXT NULL,
+                    created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL,
+                    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+                    UNIQUE (invoice_id, review_fingerprint)
+                );
+                CREATE INDEX ix_invoice_postings_invoice_updated ON invoice_postings (invoice_id, updated_utc DESC);
+                CREATE INDEX ix_invoice_postings_state ON invoice_postings (state);
+                """, cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 5, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);

@@ -25,7 +25,8 @@ public sealed class InvoiceReviewRepository(SqliteConnectionFactory factory) : I
         command.CommandText = """
           SELECT id,line_index,decision_source,selected_product_id,selected_product_name,selected_product_barcode,
           match_score,candidates_json,box_quantity,pack_size,net_line_amount,total_units,per_unit_cost,expiry_date,
-          expiry_reviewed,validation_json,created_utc,updated_utc FROM invoice_review_lines WHERE invoice_id=$id ORDER BY line_index
+          expiry_reviewed,validation_json,created_utc,updated_utc,new_product_name,new_product_category,
+          new_product_barcode,new_product_selling_price,new_product_discount FROM invoice_review_lines WHERE invoice_id=$id ORDER BY line_index
           """;
         command.Parameters.AddWithValue("$id", invoiceId.ToString("D"));
         await using var rows = await command.ExecuteReaderAsync(token);
@@ -37,7 +38,7 @@ public sealed class InvoiceReviewRepository(SqliteConnectionFactory factory) : I
                 rows.GetString(2), Text(rows,3), Text(rows,4), Text(rows,5), Decimal(rows,6), stored.Candidates,
                 Decimal(rows,8), Decimal(rows,9), Decimal(rows,10), Decimal(rows,11), Decimal(rows,12), Text(rows,13),
                 rows.GetInt32(14)==1, JsonSerializer.Deserialize<string[]>(rows.GetString(15),JsonOptions) ?? [],
-                Date(rows.GetString(16)), Date(rows.GetString(17))));
+                Date(rows.GetString(16)), Date(rows.GetString(17)),Text(rows,18),Text(rows,19),Text(rows,20),Decimal(rows,21),Decimal(rows,22)));
         }
         return new(invoiceId,fingerprint,status,lines,created,updated);
     }
@@ -61,16 +62,19 @@ public sealed class InvoiceReviewRepository(SqliteConnectionFactory factory) : I
             await Execute(connection,transaction,"""
               INSERT INTO invoice_review_lines(id,invoice_id,line_index,decision_source,selected_product_id,
               selected_product_name,selected_product_barcode,match_score,candidates_json,box_quantity,pack_size,
-              net_line_amount,total_units,per_unit_cost,expiry_date,expiry_reviewed,validation_json,created_utc,updated_utc)
+              net_line_amount,total_units,per_unit_cost,expiry_date,expiry_reviewed,validation_json,created_utc,updated_utc,
+              new_product_name,new_product_category,new_product_barcode,new_product_selling_price,new_product_discount)
               VALUES($line,$invoice,$index,$decision,$product,$name,$barcode,$score,$candidates,$quantity,$pack,$amount,
-              $units,$cost,$expiry,$reviewed,$validation,$created,$updated)
+              $units,$cost,$expiry,$reviewed,$validation,$created,$updated,$newName,$newCategory,$newBarcode,$sellingPrice,$discount)
               """, [("$line",line.Id.ToString("D")),("$invoice",review.InvoiceId.ToString("D")),("$index",line.LineIndex),
               ("$decision",line.DecisionSource),("$product",line.SelectedProductId),("$name",line.SelectedProductName),
               ("$barcode",line.SelectedProductBarcode),("$score",Format(line.MatchScore)),("$candidates",stored),
               ("$quantity",Format(line.BoxQuantity)),("$pack",Format(line.PackSize)),("$amount",Format(line.NetLineAmount)),
               ("$units",Format(line.TotalUnits)),("$cost",Format(line.PerUnitCost)),("$expiry",line.ExpiryDate),
               ("$reviewed",line.ExpiryReviewed?1:0),("$validation",JsonSerializer.Serialize(line.ValidationErrors,JsonOptions)),
-              ("$created",line.CreatedUtc.ToString("O")),("$updated",line.UpdatedUtc.ToString("O"))],token);
+              ("$created",line.CreatedUtc.ToString("O")),("$updated",line.UpdatedUtc.ToString("O")),
+              ("$newName",line.NewProductName),("$newCategory",line.NewProductCategory),("$newBarcode",line.NewProductBarcode),
+              ("$sellingPrice",Format(line.NewProductSellingPrice)),("$discount",Format(line.NewProductDiscount))],token);
         }
         await transaction.CommitAsync(token);
     }

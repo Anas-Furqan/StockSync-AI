@@ -10,13 +10,16 @@ public sealed record InvoiceReviewLine(Guid Id, int LineIndex, string OriginalDe
     IReadOnlyList<ProductMatchCandidate> Candidates, decimal? BoxQuantity, decimal? PackSize,
     decimal? NetLineAmount, decimal? TotalUnits, decimal? PerUnitCost, string? ExpiryDate,
     bool ExpiryReviewed, IReadOnlyList<string> ValidationErrors,
-    DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc);
+    DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc,
+    string? NewProductName=null, string? NewProductCategory=null, string? NewProductBarcode=null,
+    decimal? NewProductSellingPrice=null, decimal? NewProductDiscount=null);
 
 public sealed record InvoiceReview(Guid InvoiceId, string ExtractionFingerprint, string Status,
     IReadOnlyList<InvoiceReviewLine> Lines, DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc);
 public sealed record ReviewLineUpdate(Guid Id, string DecisionSource, string? SelectedProductId,
     decimal? BoxQuantity, decimal? PackSize, decimal? NetLineAmount, string? ExpiryDate,
-    bool ExpiryReviewed);
+    bool ExpiryReviewed, string? NewProductName=null, string? NewProductCategory=null,
+    string? NewProductBarcode=null, decimal? NewProductSellingPrice=null, decimal? NewProductDiscount=null);
 public sealed record InvoiceReviewResult(InvoiceReview Review, string PosStatus, string? PosMessage,
     IReadOnlyList<ReviewCatalogProduct> Catalog);
 public sealed record ReviewCatalogProduct(string Id, string Name, string? Barcode);

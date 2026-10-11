@@ -97,7 +97,10 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
             var changed=current with { DecisionSource=update.DecisionSource,
                 SelectedProductId=selected?.Id,SelectedProductName=selected?.Name,SelectedProductBarcode=selected?.Barcode,
                 MatchScore=candidate?.Score,BoxQuantity=update.BoxQuantity,PackSize=update.PackSize,
-                NetLineAmount=update.NetLineAmount,ExpiryDate=update.ExpiryDate,ExpiryReviewed=update.ExpiryReviewed };
+                NetLineAmount=update.NetLineAmount,ExpiryDate=update.ExpiryDate,ExpiryReviewed=update.ExpiryReviewed,
+                NewProductName=update.NewProductName?.Trim(),NewProductCategory=update.NewProductCategory?.Trim(),
+                NewProductBarcode=update.NewProductBarcode?.Trim(),NewProductSellingPrice=update.NewProductSellingPrice,
+                NewProductDiscount=update.NewProductDiscount };
             lines.Add(calculator.Recalculate(changed,now));
         }
         var saved=review with {Lines=lines,Status=InvoiceReviewCalculator.Status(lines),UpdatedUtc=now};

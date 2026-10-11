@@ -49,6 +49,7 @@ builder.Services.AddSingleton<SqliteConnectionFactory>();
 builder.Services.AddSingleton<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddSingleton<IInvoiceExtractionRepository, InvoiceExtractionRepository>();
 builder.Services.AddSingleton<IInvoiceReviewRepository, InvoiceReviewRepository>();
+builder.Services.AddSingleton<IInvoicePostingRepository, InvoicePostingRepository>();
 builder.Services.AddSingleton<IInvoiceService, InvoiceService>();
 builder.Services.AddSingleton<IGeminiRetryDelay, GeminiRetryDelay>();
 builder.Services.AddHttpClient<IGeminiInvoiceExtractor, GeminiInvoiceExtractor>(client =>
