@@ -290,14 +290,18 @@ class BackendSupervisor extends EventEmitter {
     return response.data
   }
 
-  async saveInvoiceReview(id, lines) {
+  async saveInvoiceReview(id, lines, selectedVendorName) {
     const response = await this.request(`/api/invoices/${id}/review`, {
       method: 'PUT', timeoutMilliseconds: 30000,
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }),
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines, selectedVendorName }),
     })
     if (!response.ok) throw publicError(response.data?.error || 'Invoice review could not be saved.')
     return response.data
   }
+
+  async getPostingStatus(id) { const r = await this.request(`/api/invoices/${id}/posting`, { timeoutMilliseconds: 30000 }); if (!r.ok) throw publicError(r.data?.error || 'Unable to check posting readiness.'); return r.data }
+  async preparePosting(id) { const r = await this.request(`/api/invoices/${id}/posting/prepare`, { method: 'POST', timeoutMilliseconds: 30000 }); if (!r.ok) throw publicError(r.data?.error || 'Unable to prepare POS posting.'); return r.data }
+  async postInvoice(id, postingId) { const r = await this.request(`/api/invoices/${id}/posting/${postingId}/execute`, { method: 'POST', timeoutMilliseconds: 120000, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmation: 'POST TO POS' }) }); if (!r.ok) throw publicError(r.data?.error || 'POS posting could not be completed.'); return r.data }
 
   async invoiceFileResponse(id, download = false) {
     if (this.childFailure || !this.child) {

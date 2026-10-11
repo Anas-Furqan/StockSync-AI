@@ -15,7 +15,11 @@ contextBridge.exposeInMainWorld('stockSync', {
   getInvoiceReview: (id) => ipcRenderer.invoke('invoice:review:get', id),
   matchInvoice: (id, resetManualDecisions = false) =>
     ipcRenderer.invoke('invoice:review:match', { id, resetManualDecisions }),
-  saveInvoiceReview: (id, lines) => ipcRenderer.invoke('invoice:review:save', { id, lines }),
+  saveInvoiceReview: (id, lines, selectedVendorName) =>
+    ipcRenderer.invoke('invoice:review:save', { id, lines, selectedVendorName }),
+  getPostingStatus: (id) => ipcRenderer.invoke('invoice:posting:get', id),
+  preparePosting: (id) => ipcRenderer.invoke('invoice:posting:prepare', id),
+  postInvoice: (id, postingId) => ipcRenderer.invoke('invoice:posting:execute', { id, postingId }),
   getInvoicePreviewUrl: (id) => `stocksync-invoice://file/${encodeURIComponent(id)}`,
   saveInvoiceCopy: (id) => ipcRenderer.invoke('invoice:save-copy', id),
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),

@@ -65,9 +65,12 @@ export function getInvoiceReview(id, bridge = globalThis.window?.stockSync) {
 export function matchInvoice(id, resetManualDecisions = false, bridge = globalThis.window?.stockSync) {
   return unwrap(requireBridge(bridge).matchInvoice(id, resetManualDecisions), 'Product matching could not be completed.')
 }
-export function saveInvoiceReview(id, lines, bridge = globalThis.window?.stockSync) {
-  return unwrap(requireBridge(bridge).saveInvoiceReview(id, lines), 'Invoice review could not be saved.')
+export function saveInvoiceReview(id, lines, selectedVendorName, bridge = globalThis.window?.stockSync) {
+  return unwrap(requireBridge(bridge).saveInvoiceReview(id, lines, selectedVendorName), 'Invoice review could not be saved.')
 }
+export function getPostingStatus(id, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).getPostingStatus(id), 'Unable to check posting readiness.') }
+export function preparePosting(id, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).preparePosting(id), 'Unable to prepare POS posting.') }
+export function postInvoice(id, postingId, bridge = globalThis.window?.stockSync) { return unwrap(requireBridge(bridge).postInvoice(id, postingId), 'POS posting could not be completed.') }
 
 export function getInvoicePreviewUrl(id, bridge = globalThis.window?.stockSync) {
   const desktop = requireBridge(bridge)

@@ -8,7 +8,7 @@ public sealed class SqliteDatabaseInitializer(
     SqliteConnectionFactory connectionFactory,
     ILogger<SqliteDatabaseInitializer> logger) : IDatabaseInitializer
 {
-    private const int CurrentSchemaVersion = 5;
+    private const int CurrentSchemaVersion = 6;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -162,6 +162,14 @@ public sealed class SqliteDatabaseInitializer(
                 CREATE INDEX ix_invoice_postings_state ON invoice_postings (state);
                 """, cancellationToken);
             await RecordMigrationAsync(connection, transaction, 5, cancellationToken);
+        }
+
+        if (version < 6)
+        {
+            await ExecuteAsync(connection, transaction, """
+                ALTER TABLE invoice_reviews ADD COLUMN selected_vendor_name TEXT NULL;
+                """, cancellationToken);
+            await RecordMigrationAsync(connection, transaction, 6, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);

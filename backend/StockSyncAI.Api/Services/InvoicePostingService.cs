@@ -59,7 +59,7 @@ public sealed class InvoicePostingService(IInvoiceService invoices,IInvoiceRevie
   var extractionFingerprint=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(extraction.ResultJson))).ToLowerInvariant();
   if(!string.Equals(review.ExtractionFingerprint,extractionFingerprint,StringComparison.Ordinal))blockers.Add("The saved review does not match the latest successful extraction.");
   var data=JsonSerializer.Deserialize<InvoiceExtractionData>(extraction.ResultJson,JsonOptions)??throw new PostingValidationException("The extraction is invalid.");
-  var supplier=data.SupplierName.Value?.Trim();if(string.IsNullOrWhiteSpace(supplier))blockers.Add("A supplier name is required.");
+  var supplier=review.SelectedVendorName?.Trim();if(string.IsNullOrWhiteSpace(supplier))blockers.Add("Select and save a POS vendor before posting.");
   IReadOnlyList<DTOs.PosVendorDto> vendors=[];IReadOnlyList<DTOs.PosProductDto> products=[];IReadOnlyList<DTOs.PosCategoryDto> categories=[];
   if(!pos.IsConfigured)blockers.Add("The read-only POS connection is not configured.");else try{vendors=await pos.GetVendorsAsync(token);products=await pos.GetProductsAsync(token);categories=await pos.GetCategoriesAsync(token);}catch{blockers.Add("Current POS vendors, products, and categories could not be validated.");}
   var vendorMatches=vendors.Where(x=>string.Equals(x.Name?.Trim(),supplier,StringComparison.OrdinalIgnoreCase)).Select(x=>x.Name!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

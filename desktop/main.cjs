@@ -218,9 +218,12 @@ function registerIpc() {
   })
   ipcMain.handle('invoice:review:save', async (event, payload) => {
     if (!isTrustedSender(event) || !validReviewPayload(payload)) return { ok: false, error: 'Invalid invoice review save request.' }
-    try { return { ok: true, data: await backend.saveInvoiceReview(payload.id, payload.lines) } }
+    try { return { ok: true, data: await backend.saveInvoiceReview(payload.id, payload.lines, payload.selectedVendorName) } }
     catch (error) { return { ok: false, error: safeError(error, 'Invoice review could not be saved.') } }
   })
+  ipcMain.handle('invoice:posting:get', async (event, id) => { if (!isTrustedSender(event) || !isInvoiceId(id)) return { ok: false, error: 'Invalid posting status request.' }; try { return { ok: true, data: await backend.getPostingStatus(id) } } catch (error) { return { ok: false, error: safeError(error, 'Unable to check posting readiness.') } } })
+  ipcMain.handle('invoice:posting:prepare', async (event, id) => { if (!isTrustedSender(event) || !isInvoiceId(id)) return { ok: false, error: 'Invalid posting preparation request.' }; try { return { ok: true, data: await backend.preparePosting(id) } } catch (error) { return { ok: false, error: safeError(error, 'Unable to prepare POS posting.') } } })
+  ipcMain.handle('invoice:posting:execute', async (event, payload) => { if (!isTrustedSender(event) || !payload || !isInvoiceId(payload.id) || !isInvoiceId(payload.postingId)) return { ok: false, error: 'Invalid POS posting request.' }; try { return { ok: true, data: await backend.postInvoice(payload.id, payload.postingId) } } catch (error) { return { ok: false, error: safeError(error, 'POS posting could not be completed.') } } })
 
   ipcMain.handle('invoice:save-copy', async (event, id) => {
     if (!isTrustedSender(event) || !isInvoiceId(id)) {
@@ -253,11 +256,15 @@ function isInvoiceId(value) {
 
 function validReviewPayload(payload) {
   if (!payload || !isInvoiceId(payload.id) || !Array.isArray(payload.lines) || payload.lines.length > 500) return false
+  if (payload.selectedVendorName != null &&
+      (typeof payload.selectedVendorName !== 'string' || payload.selectedVendorName.length > 256)) return false
   const decisions = new Set(['ManualSelection', 'NewProductCandidate', 'Unresolved'])
   return payload.lines.every((line) => line && isInvoiceId(line.id) && decisions.has(line.decisionSource) &&
     (line.selectedProductId == null || (typeof line.selectedProductId === 'string' && line.selectedProductId.length <= 256)) &&
     ['boxQuantity', 'packSize', 'netLineAmount'].every((key) => line[key] == null || (typeof line[key] === 'number' && Number.isFinite(line[key]))) &&
-    (line.expiryDate == null || (typeof line.expiryDate === 'string' && line.expiryDate.length <= 20)) && typeof line.expiryReviewed === 'boolean')
+    (line.expiryDate == null || (typeof line.expiryDate === 'string' && line.expiryDate.length <= 20)) && typeof line.expiryReviewed === 'boolean' &&
+    ['newProductName', 'newProductCategory', 'newProductBarcode'].every((key) => line[key] == null || (typeof line[key] === 'string' && line[key].length <= 256)) &&
+    ['newProductSellingPrice', 'newProductDiscount'].every((key) => line[key] == null || (typeof line[key] === 'number' && Number.isFinite(line[key])))
 }
 
 function safeError(error, fallback) {

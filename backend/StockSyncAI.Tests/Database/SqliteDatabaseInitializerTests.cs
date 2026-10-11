@@ -27,9 +27,9 @@ public sealed class SqliteDatabaseInitializerTests : IDisposable
         await using var connection = new SqliteConnection($"Data Source={paths.DatabasePath}");
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM __schema_migrations WHERE version IN (1, 2, 3, 4, 5);";
+        command.CommandText = "SELECT COUNT(*) FROM __schema_migrations WHERE version IN (1, 2, 3, 4, 5, 6);";
 
-        Assert.Equal(5L, await command.ExecuteScalarAsync());
+        Assert.Equal(6L, await command.ExecuteScalarAsync());
         await command.DisposeAsync();
         await connection.CloseAsync();
         SqliteConnection.ClearAllPools();

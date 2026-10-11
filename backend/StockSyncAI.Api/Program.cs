@@ -99,6 +99,7 @@ app.MapPosEndpoints();
 app.MapInvoiceEndpoints();
 app.MapGeminiEndpoints();
 app.MapInvoiceReviewEndpoints();
+app.MapInvoicePostingEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

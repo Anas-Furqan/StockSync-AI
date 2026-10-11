@@ -24,7 +24,7 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
         if(review.ExtractionFingerprint!=current.Fingerprint)
             throw new ReviewValidationException("The extraction changed. Run matching again before continuing the review.");
         var catalog=await TryCatalog(token);
-        return new(review,catalog.Status,catalog.Message,catalog.Products);
+        return new(review,catalog.Status,catalog.Message,catalog.Products,catalog.Categories,catalog.Vendors);
     }
 
     public async Task<InvoiceReviewResult> MatchAsync(Guid invoiceId,bool reset,CancellationToken token=default)
@@ -32,8 +32,8 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
         await invoices.GetAsync(invoiceId,token);
         var extraction=await CurrentExtraction(invoiceId,token);
         if(!pos.IsConfigured) throw new ReviewPosUnavailableException("The POS connection is not configured. Configure it and retry matching.");
-        IReadOnlyList<PosProductDto> catalog;
-        try { catalog=await pos.GetProductsAsync(token); }
+        IReadOnlyList<PosProductDto> catalog; IReadOnlyList<DTOs.PosCategoryDto> categories; IReadOnlyList<DTOs.PosVendorDto> vendors;
+        try { catalog=await pos.GetProductsAsync(token); categories=await pos.GetCategoriesAsync(token); vendors=await pos.GetVendorsAsync(token); }
         catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
         catch(Exception){throw new ReviewPosUnavailableException("The POS product catalog is unavailable. Check the connection and retry.");}
         var existing=await reviews.GetAsync(invoiceId,token);
@@ -59,28 +59,40 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
                 old?.ExpiryDate??NormalizeDate(item.ExpiryDate.Value),old?.ExpiryReviewed??false,[],old?.CreatedUtc??now,now);
             lines.Add(calculator.Recalculate(line,now));
         }
+        var extractedVendor=extraction.Data.SupplierName.Value?.Trim();
+        var matchingVendor=MapVendors(vendors)
+            .SingleOrDefault(x=>string.Equals(x,extractedVendor,StringComparison.OrdinalIgnoreCase));
         var review=new InvoiceReview(invoiceId,extraction.Fingerprint,InvoiceReviewCalculator.Status(lines),lines,
-            preserve?existing!.CreatedUtc:now,now);
+            preserve?existing!.CreatedUtc:now,now,preserve?existing!.SelectedVendorName:matchingVendor);
         await reviews.SaveAsync(review,token);
-        return new(review,"connected",null,MapCatalog(catalog));
+        return new(review,"connected",null,MapCatalog(catalog),MapCategories(categories),MapVendors(vendors));
     }
 
-    public async Task<InvoiceReviewResult> SaveAsync(Guid invoiceId,IReadOnlyList<ReviewLineUpdate> updates,CancellationToken token=default)
+    public async Task<InvoiceReviewResult> SaveAsync(Guid invoiceId,IReadOnlyList<ReviewLineUpdate> updates,
+        string? selectedVendorName,CancellationToken token=default)
     {
         var review=await reviews.GetAsync(invoiceId,token) ?? throw new ReviewNotFoundException("Run product matching before saving a review.");
         var extraction=await CurrentExtraction(invoiceId,token);
         if(review.ExtractionFingerprint!=extraction.Fingerprint) throw new ReviewValidationException("The extraction changed. Run matching again.");
         if(updates.Count!=review.Lines.Count || updates.Select(x=>x.Id).Distinct().Count()!=updates.Count)
             throw new ReviewValidationException("Every review row must be submitted exactly once.");
-        var needsCatalog=updates.Any(x=>x.DecisionSource==ReviewDecisionSources.ManualSelection);
-        IReadOnlyList<PosProductDto> catalog=[];
-        if(needsCatalog)
+        var needsProducts=updates.Any(x=>x.DecisionSource==ReviewDecisionSources.ManualSelection);
+        IReadOnlyList<PosProductDto> catalog=[]; IReadOnlyList<DTOs.PosCategoryDto> categories=[]; IReadOnlyList<DTOs.PosVendorDto> vendors=[];
+        if(needsProducts || !string.IsNullOrWhiteSpace(selectedVendorName))
         {
-            if(!pos.IsConfigured) throw new ReviewPosUnavailableException("The POS connection is required to validate product selections.");
-            try { catalog=await pos.GetProductsAsync(token); }
+            if(!pos.IsConfigured) throw new ReviewPosUnavailableException("The POS connection is required to validate review selections.");
+            try
+            {
+                if(needsProducts) catalog=await pos.GetProductsAsync(token);
+                categories=await pos.GetCategoriesAsync(token);
+                vendors=await pos.GetVendorsAsync(token);
+            }
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-            catch(Exception){throw new ReviewPosUnavailableException("The POS product catalog is unavailable. Your review was not saved.");}
+            catch(Exception){throw new ReviewPosUnavailableException("The POS catalog is unavailable. Your review was not saved.");}
         }
+        var canonicalVendor=MapVendors(vendors).SingleOrDefault(x=>string.Equals(x,selectedVendorName?.Trim(),StringComparison.OrdinalIgnoreCase));
+        if(!string.IsNullOrWhiteSpace(selectedVendorName)&&canonicalVendor is null)
+            throw new ReviewValidationException("The selected POS vendor is no longer available.");
         var products=MapCatalog(catalog).ToDictionary(x=>x.Id,StringComparer.Ordinal);
         var now=DateTimeOffset.UtcNow; var lines=new List<InvoiceReviewLine>();
         foreach(var current in review.Lines)
@@ -103,11 +115,13 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
                 NewProductDiscount=update.NewProductDiscount };
             lines.Add(calculator.Recalculate(changed,now));
         }
-        var saved=review with {Lines=lines,Status=InvoiceReviewCalculator.Status(lines),UpdatedUtc=now};
+        var saved=review with {Lines=lines,Status=InvoiceReviewCalculator.Status(lines),UpdatedUtc=now,
+            SelectedVendorName=canonicalVendor};
         await reviews.SaveAsync(saved,token);
-        if (needsCatalog) return new(saved,"connected",null,MapCatalog(catalog));
+        if (needsProducts || !string.IsNullOrWhiteSpace(selectedVendorName))
+            return new(saved,"connected",null,MapCatalog(catalog),MapCategories(categories),MapVendors(vendors));
         var catalogState=await TryCatalog(token);
-        return new(saved,catalogState.Status,catalogState.Message,catalogState.Products);
+        return new(saved,catalogState.Status,catalogState.Message,catalogState.Products,catalogState.Categories,catalogState.Vendors);
     }
 
     private async Task<(InvoiceExtractionData Data,string Fingerprint)> CurrentExtraction(Guid id,CancellationToken token)
@@ -118,16 +132,19 @@ public sealed partial class InvoiceReviewService(IInvoiceReviewRepository review
             ?? throw new ReviewValidationException("The stored extraction is invalid.");
         return (InvoiceExtractionValidator.ValidateAndNormalize(data),Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(record.ResultJson))).ToLowerInvariant());
     }
-    private async Task<(string Status,string? Message,IReadOnlyList<ReviewCatalogProduct> Products)> TryCatalog(CancellationToken token)
+    private async Task<(string Status,string? Message,IReadOnlyList<ReviewCatalogProduct> Products,
+        IReadOnlyList<string> Categories,IReadOnlyList<string> Vendors)> TryCatalog(CancellationToken token)
     {
-        if(!pos.IsConfigured)return("notConfigured","The POS connection is not configured.",[]);
-        try{return("connected",null,MapCatalog(await pos.GetProductsAsync(token)));}
+        if(!pos.IsConfigured)return("notConfigured","The POS connection is not configured.",[],[],[]);
+        try{return("connected",null,MapCatalog(await pos.GetProductsAsync(token)),MapCategories(await pos.GetCategoriesAsync(token)),MapVendors(await pos.GetVendorsAsync(token)));}
         catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
-        catch{return("failed","The POS product catalog is unavailable.",[]);}
+        catch{return("failed","The POS catalog is unavailable.",[],[],[]);}
     }
     private static IReadOnlyList<ReviewCatalogProduct> MapCatalog(IReadOnlyList<PosProductDto> values)=>values
         .Select(x=>new ReviewCatalogProduct(Convert.ToString(x.ProductId,CultureInfo.InvariantCulture)?.Trim()??"",x.Name?.Trim()??"",x.Barcode?.Trim()))
         .Where(x=>x.Id.Length>0&&x.Name.Length>0).GroupBy(x=>x.Id,StringComparer.Ordinal).Select(x=>x.First()).ToArray();
+    private static IReadOnlyList<string> MapCategories(IReadOnlyList<DTOs.PosCategoryDto> values)=>values.Select(x=>x.Name?.Trim()).Where(x=>!string.IsNullOrWhiteSpace(x)).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
+    private static IReadOnlyList<string> MapVendors(IReadOnlyList<DTOs.PosVendorDto> values)=>values.Select(x=>x.Name?.Trim()).Where(x=>!string.IsNullOrWhiteSpace(x)).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
     private static Guid LineId(Guid invoice,string fingerprint,int index)
     { var bytes=SHA256.HashData(Encoding.UTF8.GetBytes($"{invoice:D}|{fingerprint}|{index}")); return new Guid(bytes[..16]); }
     private static string? Number(decimal? value)=>value?.ToString(CultureInfo.InvariantCulture);

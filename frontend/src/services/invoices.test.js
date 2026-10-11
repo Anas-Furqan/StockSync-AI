@@ -5,6 +5,9 @@ import {
   getInvoiceReview,
   matchInvoice,
   saveInvoiceReview,
+  getPostingStatus,
+  preparePosting,
+  postInvoice,
   getInvoiceExtraction,
   getInvoicePreviewUrl,
   listInvoices,
@@ -79,8 +82,16 @@ describe('invoice desktop service', () => {
     }
     await expect(getInvoiceReview('invoice-id', bridge)).resolves.toEqual(review)
     await expect(matchInvoice('invoice-id', false, bridge)).resolves.toEqual(review)
-    await expect(saveInvoiceReview('invoice-id', [], bridge)).resolves.toEqual(review)
+    await expect(saveInvoiceReview('invoice-id', [], 'Supplier Ltd', bridge)).resolves.toEqual(review)
     expect(bridge.matchInvoice).toHaveBeenCalledWith('invoice-id', false)
-    expect(bridge.saveInvoiceReview).toHaveBeenCalledWith('invoice-id', [])
+    expect(bridge.saveInvoiceReview).toHaveBeenCalledWith('invoice-id', [], 'Supplier Ltd')
+  })
+  it('checks, prepares, and posts only through narrow posting methods', async () => {
+    const status = { readiness: { state: 'Prepared', postingId: 'posting-id' } }
+    const bridge = { getPostingStatus: vi.fn().mockResolvedValue({ ok: true, data: status }), preparePosting: vi.fn().mockResolvedValue({ ok: true, data: status }), postInvoice: vi.fn().mockResolvedValue({ ok: true, data: status }) }
+    await expect(getPostingStatus('invoice-id', bridge)).resolves.toEqual(status)
+    await expect(preparePosting('invoice-id', bridge)).resolves.toEqual(status)
+    await expect(postInvoice('invoice-id', 'posting-id', bridge)).resolves.toEqual(status)
+    expect(bridge.postInvoice).toHaveBeenCalledWith('invoice-id', 'posting-id')
   })
 })

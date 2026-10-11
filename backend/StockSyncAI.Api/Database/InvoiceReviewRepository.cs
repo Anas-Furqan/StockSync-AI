@@ -12,13 +12,13 @@ public sealed class InvoiceReviewRepository(SqliteConnectionFactory factory) : I
     {
         await using var connection = await factory.OpenAsync(token);
         await using var header = connection.CreateCommand();
-        header.CommandText = "SELECT extraction_fingerprint,status,created_utc,updated_utc FROM invoice_reviews WHERE invoice_id=$id";
+        header.CommandText = "SELECT extraction_fingerprint,status,created_utc,updated_utc,selected_vendor_name FROM invoice_reviews WHERE invoice_id=$id";
         header.Parameters.AddWithValue("$id", invoiceId.ToString("D"));
-        string fingerprint, status; DateTimeOffset created, updated;
+        string fingerprint, status; DateTimeOffset created, updated; string? selectedVendor;
         await using (var reader = await header.ExecuteReaderAsync(token))
         {
             if (!await reader.ReadAsync(token)) return null;
-            fingerprint=reader.GetString(0); status=reader.GetString(1); created=Date(reader.GetString(2)); updated=Date(reader.GetString(3));
+            fingerprint=reader.GetString(0); status=reader.GetString(1); created=Date(reader.GetString(2)); updated=Date(reader.GetString(3)); selectedVendor=Text(reader,4);
         }
         var lines = new List<InvoiceReviewLine>();
         await using var command = connection.CreateCommand();
@@ -40,7 +40,7 @@ public sealed class InvoiceReviewRepository(SqliteConnectionFactory factory) : I
                 rows.GetInt32(14)==1, JsonSerializer.Deserialize<string[]>(rows.GetString(15),JsonOptions) ?? [],
                 Date(rows.GetString(16)), Date(rows.GetString(17)),Text(rows,18),Text(rows,19),Text(rows,20),Decimal(rows,21),Decimal(rows,22)));
         }
-        return new(invoiceId,fingerprint,status,lines,created,updated);
+        return new(invoiceId,fingerprint,status,lines,created,updated,selectedVendor);
     }
 
     public async Task SaveAsync(InvoiceReview review, CancellationToken token = default)
@@ -48,11 +48,12 @@ public sealed class InvoiceReviewRepository(SqliteConnectionFactory factory) : I
         await using var connection = await factory.OpenAsync(token);
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token);
         await Execute(connection,transaction,"""
-          INSERT INTO invoice_reviews(invoice_id,extraction_fingerprint,status,created_utc,updated_utc)
-          VALUES($id,$fingerprint,$status,$created,$updated) ON CONFLICT(invoice_id) DO UPDATE SET
-          extraction_fingerprint=$fingerprint,status=$status,updated_utc=$updated
+          INSERT INTO invoice_reviews(invoice_id,extraction_fingerprint,status,created_utc,updated_utc,selected_vendor_name)
+          VALUES($id,$fingerprint,$status,$created,$updated,$vendor) ON CONFLICT(invoice_id) DO UPDATE SET
+          extraction_fingerprint=$fingerprint,status=$status,updated_utc=$updated,selected_vendor_name=$vendor
           """, [("$id",review.InvoiceId.ToString("D")),("$fingerprint",review.ExtractionFingerprint),
-          ("$status",review.Status),("$created",review.CreatedUtc.ToString("O")),("$updated",review.UpdatedUtc.ToString("O"))], token);
+          ("$status",review.Status),("$created",review.CreatedUtc.ToString("O")),("$updated",review.UpdatedUtc.ToString("O")),
+          ("$vendor",review.SelectedVendorName)], token);
         await Execute(connection,transaction,"DELETE FROM invoice_review_lines WHERE invoice_id=$id",
             [("$id",review.InvoiceId.ToString("D"))],token);
         foreach(var line in review.Lines)

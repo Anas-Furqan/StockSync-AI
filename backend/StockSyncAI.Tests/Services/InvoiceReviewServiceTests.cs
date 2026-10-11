@@ -19,7 +19,7 @@ public sealed class InvoiceReviewServiceTests : IDisposable
         await StoreExtraction(context.Extractions,invoice.Id,InvoiceExtractionServiceTests.SampleData());
         var first=await context.Service.MatchAsync(invoice.Id,false);
         var line=Assert.Single(first.Review.Lines);
-        var saved=await context.Service.SaveAsync(invoice.Id,[new(line.Id,ReviewDecisionSources.ManualSelection,"MED-1",2,20,500,null,true)]);
+        var saved=await context.Service.SaveAsync(invoice.Id,[new(line.Id,ReviewDecisionSources.ManualSelection,"MED-1",2,20,500,null,true)],"Supplier Ltd");
         Assert.Equal(ReviewStatuses.ReadyForNextPhase,saved.Review.Status);
         Assert.Equal(40m,Assert.Single(saved.Review.Lines).TotalUnits);
         Assert.Equal(12.5m,Assert.Single(saved.Review.Lines).PerUnitCost);
@@ -78,7 +78,7 @@ public sealed class InvoiceReviewServiceTests : IDisposable
         public bool IsConfigured=>configured;
         public Task VerifyConnectionAsync(CancellationToken t=default)=>Task.CompletedTask;
         public Task<IReadOnlyList<PosProductDto>> GetProductsAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<PosProductDto>>([new("MED-1","Medicine 10mg x 20",null,null,null,null,null)]);
-        public Task<IReadOnlyList<PosVendorDto>> GetVendorsAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<PosVendorDto>>([]);
+        public Task<IReadOnlyList<PosVendorDto>> GetVendorsAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<PosVendorDto>>([new("Supplier Ltd")]);
         public Task<IReadOnlyList<PosCategoryDto>> GetCategoriesAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<PosCategoryDto>>([]);
     }
 }
